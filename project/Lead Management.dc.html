@@ -1,0 +1,1240 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+
+<helmet>
+<link rel="stylesheet" href="assets/ds-styles.css">
+<style>
+body{margin:0;background:var(--color-bg);color:var(--color-text);font-family:var(--font-body);}
+a{color:var(--color-accent);text-decoration:none;}
+a:hover{color:var(--color-accent-700);}
+input,select,textarea,button{font-family:var(--font-body);}
+select{appearance:none;-webkit-appearance:none;background-image:none;}
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:var(--color-bg);color:var(--color-text);font-family:var(--font-body);">
+
+  <div style="display:flex;align-items:center;gap:36px;padding:20px 48px;">
+    <div style="font-family:var(--font-heading);font-weight:600;font-size:19px;letter-spacing:-0.01em;cursor:pointer;" onClick="{{ goDashboardClick }}">EM Leads</div>
+    <div style="display:flex;gap:26px;margin-right:auto;">
+      <a href="javascript:void(0)" style="font-size:14px;color:{{ navDashboardColor }};font-weight:{{ navDashboardWeight }};" onClick="{{ goDashboardClick }}">Dashboard</a>
+      <a href="javascript:void(0)" style="font-size:14px;color:{{ navLeadsColor }};font-weight:{{ navLeadsWeight }};" onClick="{{ goLeadsClick }}">Leads</a>
+    </div>
+    <div style="display:flex;align-items:center;gap:11px;">
+      <div style="width:34px;height:34px;border-radius:50%;background:var(--color-accent-100);color:var(--color-accent-800);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex:none;">AN</div>
+      <div>
+        <div style="font-size:13px;font-weight:600;line-height:1.2;">Aditya Narayan</div>
+        <div style="font-size:11px;color:var(--color-neutral-600);line-height:1.2;">Sales Agent</div>
+      </div>
+    </div>
+  </div>
+
+  <sc-if value="{{ toastVisible }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;top:18px;right:48px;z-index:60;background:var(--color-neutral-900);color:var(--color-bg);padding:12px 20px;border-radius:var(--radius-md);font-size:13px;box-shadow:var(--shadow-lg);">{{ toast }}</div>
+  </sc-if>
+
+  <sc-if value="{{ isDashboard }}" hint-placeholder-val="{{ true }}">
+  <div style="padding:12px 48px 8px;" data-screen-label="Dashboard">
+    <h1 style="margin:0 0 4px;font-size:30px;">Good afternoon, Aditya</h1>
+    <div style="font-size:13px;color:var(--color-neutral-600);margin-bottom:30px;">{{ todayDisplay }} · {{ myLeadsCount }} leads in your queue</div>
+
+    <div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:40px;">
+      <div style="background:var(--color-surface);border-radius:var(--radius-md);padding:22px 26px;min-width:210px;flex:1;">
+        <div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-accent-700);margin-bottom:10px;">Assigned Today</div>
+        <div style="font-family:var(--font-heading);font-size:34px;font-weight:600;">{{ statAssignedToday }}</div>
+      </div>
+      <div style="background:var(--color-surface);border-radius:var(--radius-md);padding:22px 26px;min-width:210px;flex:1;">
+        <div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-neutral-700);margin-bottom:10px;">Not Attempted</div>
+        <div style="font-family:var(--font-heading);font-size:34px;font-weight:600;">{{ statNotAttempted }}</div>
+      </div>
+      <div style="background:var(--color-surface);border-radius:var(--radius-md);padding:22px 26px;min-width:210px;flex:1;">
+        <div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-accent-2-700);margin-bottom:10px;">Follow-ups Due Today</div>
+        <div style="font-family:var(--font-heading);font-size:34px;font-weight:600;">{{ statFollowupsDue }}</div>
+      </div>
+      <div style="background:var(--color-surface);border-radius:var(--radius-md);padding:22px 26px;min-width:210px;flex:1;">
+        <div style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-accent-700);margin-bottom:10px;">Sales On Book</div>
+        <div style="font-family:var(--font-heading);font-size:34px;font-weight:600;">{{ statSales }}</div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap;">
+      <div style="flex:2;min-width:420px;">
+        <h4 style="margin:0 0 16px;">Follow-ups due &amp; overdue</h4>
+        <sc-if value="{{ hasFollowupsToday }}" hint-placeholder-val="{{ true }}">
+          <sc-for list="{{ followupsToday }}" as="f" hint-placeholder-count="3">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 4px;border-bottom:1px solid color-mix(in srgb, var(--color-text) 8%, transparent);cursor:pointer;" onClick="{{ f.onOpen }}">
+              <div>
+                <div style="font-size:14px;font-weight:600;">{{ f.nameDisplay }}</div>
+                <div style="font-size:12px;color:var(--color-neutral-600);margin-top:2px;">{{ f.city }} · {{ f.stageLabel }}</div>
+              </div>
+              <div style="text-align:right;">
+                <div style="font-size:13px;">{{ f.followupDisplay }}</div>
+                <div style="font-size:11px;margin-top:2px;color:{{ f.followupTagColor }};font-weight:600;">{{ f.followupTagText }}</div>
+              </div>
+            </div>
+          </sc-for>
+        </sc-if>
+        <sc-if value="{{ noFollowupsToday }}" hint-placeholder-val="{{ false }}">
+          <div style="font-size:13px;color:var(--color-neutral-600);padding:8px 4px;">Nothing due right now — nice work.</div>
+        </sc-if>
+      </div>
+      <div style="flex:1;min-width:260px;">
+        <h4 style="margin:0 0 16px;">Your pipeline</h4>
+        <sc-for list="{{ stageBreakdown }}" as="s" hint-placeholder-count="8">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;">
+            <div style="display:flex;align-items:center;gap:8px;font-size:13px;">
+              <span style="width:9px;height:9px;border-radius:50%;background:{{ s.dot }};display:inline-block;"></span>
+              {{ s.label }}
+            </div>
+            <div style="font-size:13px;font-weight:600;">{{ s.count }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="margin-top:36px;">
+      <button style="background:transparent;color:var(--color-accent);border:none;padding:6px 4px;font-family:var(--font-heading);font-weight:600;font-size:14px;cursor:pointer;" style-hover="color:var(--color-accent-700);" onClick="{{ goLeadsClick }}">View all leads →</button>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ isLeads }}" hint-placeholder-val="{{ false }}">
+  <div style="padding:12px 48px 8px;" data-screen-label="Leads Grid">
+
+    <div style="display:flex;flex-wrap:wrap;align-items:flex-end;gap:14px 18px;margin-bottom:22px;">
+      <div style="flex:none;">
+        <h1 style="margin:0;font-size:26px;">Leads</h1>
+        <div style="font-size:12px;color:var(--color-neutral-600);margin-top:3px;">{{ filteredCount }} match</div>
+      </div>
+
+      <div style="min-width:240px;">
+        <label style="display:block;font-size:11px;margin-bottom:5px;color:color-mix(in srgb, var(--color-text) 70%, transparent);">Search</label>
+        <input type="text" placeholder="Name, phone, city…" value="{{ search }}" onChange="{{ setSearch }}" style="width:100%;min-height:34px;padding:6px 10px;font-size:13px;color:var(--color-text);background:var(--color-bg);border:1px solid var(--color-divider);border-radius:var(--radius-md);"/>
+      </div>
+
+      <div>
+        <label style="display:block;font-size:11px;margin-bottom:5px;color:color-mix(in srgb, var(--color-text) 70%, transparent);">&nbsp;</label>
+        <button style="background:transparent;color:var(--color-accent);border:none;padding:8px 4px;font-family:var(--font-heading);font-weight:600;font-size:12px;cursor:pointer;" onClick="{{ resetFiltersClick }}">Reset filters</button>
+      </div>
+
+      <div style="margin-left:auto;display:flex;gap:12px;align-self:flex-end;">
+        <button style="background:transparent;color:var(--color-text);border:1px solid var(--color-divider);border-radius:var(--radius-md);padding:9px 16px;font-family:var(--font-heading);font-weight:600;font-size:13px;cursor:pointer;" style-hover="background:color-mix(in srgb, var(--color-text) 7%, transparent);" onClick="{{ openQuickAddClick }}">+ Quick Add Lead</button>
+        <button style="background:var(--color-accent);color:var(--color-bg);border:1px solid transparent;border-radius:var(--radius-md);padding:9px 16px;font-family:var(--font-heading);font-weight:600;font-size:13px;cursor:pointer;" style-hover="background:var(--color-accent-600);" onClick="{{ openAddLeadClick }}">Add New Lead</button>
+      </div>
+    </div>
+
+    <table style="width:100%;border-collapse:collapse;font-size:14px;">
+      <thead>
+        <tr>
+          <th style="text-align:left;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 60%, transparent);padding:10px;border-bottom:1px solid var(--color-divider);">Lead</th>
+
+          <th style="text-align:left;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 60%, transparent);padding:10px;border-bottom:1px solid var(--color-divider);position:relative;">
+            <span style="cursor:pointer;user-select:none;display:inline-block;padding:2px 6px;border-radius:3px;background:{{ stageHeaderBg }};" onClick="{{ toggleStageFilterClick }}">Stage ▾</span>
+            <sc-if value="{{ stageHasActive }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:10px;font-weight:400;color:var(--color-neutral-700);margin-top:3px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-transform:none;letter-spacing:normal;">{{ stageActiveLabel }}</div>
+            </sc-if>
+            <sc-if value="{{ stageFilterOpen }}" hint-placeholder-val="{{ false }}">
+              <div style="position:absolute;top:100%;left:10px;margin-top:4px;z-index:40;background:var(--color-bg);border:1px solid var(--color-divider);border-radius:var(--radius-md);box-shadow:var(--shadow-md);padding:12px;text-transform:none;letter-spacing:normal;font-size:12px;font-weight:400;width:230px;max-height:260px;overflow-y:auto;">
+                <sc-for list="{{ stageOptions }}" as="opt" hint-placeholder-count="8">
+                  <label style="display:flex;align-items:center;gap:8px;padding:5px 2px;cursor:pointer;">
+                    <input type="checkbox" checked="{{ opt.checked }}" onChange="{{ opt.onToggle }}" style="width:14px;height:14px;accent-color:var(--color-accent);"/>
+                    {{ opt.label }}
+                  </label>
+                </sc-for>
+                <div style="display:flex;justify-content:space-between;margin-top:8px;border-top:1px solid var(--color-divider);padding-top:8px;">
+                  <button style="background:transparent;color:var(--color-accent);border:none;padding:4px;font-size:11px;font-weight:600;cursor:pointer;" onClick="{{ clearStageFilterClick }}">Clear</button>
+                  <button style="background:var(--color-accent);color:var(--color-bg);border:none;border-radius:var(--radius-md);padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer;" onClick="{{ toggleStageFilterClick }}">Done</button>
+                </div>
+              </div>
+            </sc-if>
+          </th>
+
+          <th style="text-align:left;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 60%, transparent);padding:10px;border-bottom:1px solid var(--color-divider);position:relative;">
+            <span style="cursor:pointer;user-select:none;display:inline-block;padding:2px 6px;border-radius:3px;background:{{ taskHeaderBg }};" onClick="{{ toggleTaskFilterClick }}">Task Date ▾</span>
+            <sc-if value="{{ taskHasActive }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:10px;font-weight:400;color:var(--color-neutral-700);margin-top:3px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-transform:none;letter-spacing:normal;">{{ taskRangeCaption }}</div>
+            </sc-if>
+            <sc-if value="{{ taskFilterOpen }}" hint-placeholder-val="{{ false }}">
+              <div style="position:absolute;top:100%;left:10px;margin-top:4px;z-index:40;background:var(--color-bg);border:1px solid var(--color-divider);border-radius:var(--radius-md);box-shadow:var(--shadow-md);padding:14px;text-transform:none;letter-spacing:normal;font-size:12px;font-weight:400;width:230px;">
+                <div style="display:flex;align-items:center;gap:5px;">
+                  <input type="date" value="{{ taskFrom }}" onChange="{{ setTaskFrom }}" style="width:100px;min-height:32px;padding:5px 6px;font-size:12px;background:var(--color-surface);border:1px solid var(--color-divider);border-radius:var(--radius-md);"/>
+                  <span style="color:var(--color-neutral-500);">–</span>
+                  <input type="date" value="{{ taskTo }}" onChange="{{ setTaskTo }}" style="width:100px;min-height:32px;padding:5px 6px;font-size:12px;background:var(--color-surface);border:1px solid var(--color-divider);border-radius:var(--radius-md);"/>
+                </div>
+                <div style="font-size:11px;color:var(--color-neutral-600);margin-top:8px;">{{ taskRangeCaption }}</div>
+                <div style="display:flex;justify-content:space-between;margin-top:10px;">
+                  <button style="background:transparent;color:var(--color-accent);border:none;padding:4px;font-size:11px;font-weight:600;cursor:pointer;" onClick="{{ clearTaskFilterClick }}">Clear</button>
+                  <button style="background:var(--color-accent);color:var(--color-bg);border:none;border-radius:var(--radius-md);padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer;" onClick="{{ toggleTaskFilterClick }}">Done</button>
+                </div>
+              </div>
+            </sc-if>
+          </th>
+
+          <th style="text-align:left;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 60%, transparent);padding:10px;border-bottom:1px solid var(--color-divider);position:relative;">
+            <span style="cursor:pointer;user-select:none;display:inline-block;padding:2px 6px;border-radius:3px;background:{{ followupHeaderBg }};" onClick="{{ toggleFollowupFilterClick }}">Follow-up ▾</span>
+            <sc-if value="{{ followupHasActive }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:10px;font-weight:400;color:var(--color-neutral-700);margin-top:3px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-transform:none;letter-spacing:normal;">{{ followupRangeCaption }}</div>
+            </sc-if>
+            <sc-if value="{{ followupFilterOpen }}" hint-placeholder-val="{{ false }}">
+              <div style="position:absolute;top:100%;left:10px;margin-top:4px;z-index:40;background:var(--color-bg);border:1px solid var(--color-divider);border-radius:var(--radius-md);box-shadow:var(--shadow-md);padding:14px;text-transform:none;letter-spacing:normal;font-size:12px;font-weight:400;width:230px;">
+                <div style="display:flex;align-items:center;gap:5px;">
+                  <input type="date" value="{{ followupFrom }}" onChange="{{ setFollowupFrom }}" style="width:100px;min-height:32px;padding:5px 6px;font-size:12px;background:var(--color-surface);border:1px solid var(--color-divider);border-radius:var(--radius-md);"/>
+                  <span style="color:var(--color-neutral-500);">–</span>
+                  <input type="date" value="{{ followupTo }}" onChange="{{ setFollowupTo }}" style="width:100px;min-height:32px;padding:5px 6px;font-size:12px;background:var(--color-surface);border:1px solid var(--color-divider);border-radius:var(--radius-md);"/>
+                </div>
+                <div style="font-size:11px;color:var(--color-neutral-600);margin-top:8px;">{{ followupRangeCaption }}</div>
+                <div style="display:flex;justify-content:space-between;margin-top:10px;">
+                  <button style="background:transparent;color:var(--color-accent);border:none;padding:4px;font-size:11px;font-weight:600;cursor:pointer;" onClick="{{ clearFollowupFilterClick }}">Clear</button>
+                  <button style="background:var(--color-accent);color:var(--color-bg);border:none;border-radius:var(--radius-md);padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer;" onClick="{{ toggleFollowupFilterClick }}">Done</button>
+                </div>
+              </div>
+            </sc-if>
+          </th>
+
+          <th style="text-align:left;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 60%, transparent);padding:10px;border-bottom:1px solid var(--color-divider);position:relative;">
+            <span style="cursor:pointer;user-select:none;display:inline-block;padding:2px 6px;border-radius:3px;background:{{ ownerHeaderBg }};" onClick="{{ toggleOwnerFilterClick }}">Owner ▾</span>
+            <sc-if value="{{ ownerHasActive }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:10px;font-weight:400;color:var(--color-neutral-700);margin-top:3px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-transform:none;letter-spacing:normal;">{{ ownerActiveLabel }}</div>
+            </sc-if>
+            <sc-if value="{{ ownerFilterOpen }}" hint-placeholder-val="{{ false }}">
+              <div style="position:absolute;top:100%;left:10px;margin-top:4px;z-index:40;background:var(--color-bg);border:1px solid var(--color-divider);border-radius:var(--radius-md);box-shadow:var(--shadow-md);padding:12px;text-transform:none;letter-spacing:normal;font-size:12px;font-weight:400;width:200px;max-height:260px;overflow-y:auto;">
+                <sc-for list="{{ ownerOptions }}" as="opt" hint-placeholder-count="7">
+                  <label style="display:flex;align-items:center;gap:8px;padding:5px 2px;cursor:pointer;">
+                    <input type="checkbox" checked="{{ opt.checked }}" onChange="{{ opt.onToggle }}" style="width:14px;height:14px;accent-color:var(--color-accent);"/>
+                    {{ opt.label }}
+                  </label>
+                </sc-for>
+                <div style="display:flex;justify-content:space-between;margin-top:8px;border-top:1px solid var(--color-divider);padding-top:8px;">
+                  <button style="background:transparent;color:var(--color-accent);border:none;padding:4px;font-size:11px;font-weight:600;cursor:pointer;" onClick="{{ clearOwnerFilterClick }}">Clear</button>
+                  <button style="background:var(--color-accent);color:var(--color-bg);border:none;border-radius:var(--radius-md);padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer;" onClick="{{ toggleOwnerFilterClick }}">Done</button>
+                </div>
+              </div>
+            </sc-if>
+          </th>
+
+          <th style="text-align:left;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 60%, transparent);padding:10px;border-bottom:1px solid var(--color-divider);position:relative;">
+            <span style="cursor:pointer;user-select:none;display:inline-block;padding:2px 6px;border-radius:3px;background:{{ sourceHeaderBg }};" onClick="{{ toggleSourceFilterClick }}">Source / Campaign ▾</span>
+            <sc-if value="{{ sourceHasActive }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:10px;font-weight:400;color:var(--color-neutral-700);margin-top:3px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-transform:none;letter-spacing:normal;">{{ sourceActiveLabel }}</div>
+            </sc-if>
+            <sc-if value="{{ sourceFilterOpen }}" hint-placeholder-val="{{ false }}">
+              <div style="position:absolute;top:100%;left:10px;margin-top:4px;z-index:40;background:var(--color-bg);border:1px solid var(--color-divider);border-radius:var(--radius-md);box-shadow:var(--shadow-md);padding:12px;text-transform:none;letter-spacing:normal;font-size:12px;font-weight:400;width:220px;max-height:260px;overflow-y:auto;">
+                <sc-for list="{{ sourceOptions }}" as="opt" hint-placeholder-count="8">
+                  <label style="display:flex;align-items:center;gap:8px;padding:5px 2px;cursor:pointer;">
+                    <input type="checkbox" checked="{{ opt.checked }}" onChange="{{ opt.onToggle }}" style="width:14px;height:14px;accent-color:var(--color-accent);"/>
+                    {{ opt.label }}
+                  </label>
+                </sc-for>
+                <div style="display:flex;justify-content:space-between;margin-top:8px;border-top:1px solid var(--color-divider);padding-top:8px;">
+                  <button style="background:transparent;color:var(--color-accent);border:none;padding:4px;font-size:11px;font-weight:600;cursor:pointer;" onClick="{{ clearSourceFilterClick }}">Clear</button>
+                  <button style="background:var(--color-accent);color:var(--color-bg);border:none;border-radius:var(--radius-md);padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer;" onClick="{{ toggleSourceFilterClick }}">Done</button>
+                </div>
+              </div>
+            </sc-if>
+          </th>
+
+          <th style="text-align:left;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 60%, transparent);padding:10px;border-bottom:1px solid var(--color-divider);position:relative;">
+            <span style="cursor:pointer;user-select:none;display:inline-block;padding:2px 6px;border-radius:3px;background:{{ cityHeaderBg }};" onClick="{{ toggleCityFilterClick }}">City / Pin ▾</span>
+            <sc-if value="{{ cityHasActive }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:10px;font-weight:400;color:var(--color-neutral-700);margin-top:3px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-transform:none;letter-spacing:normal;">{{ cityActiveLabel }}</div>
+            </sc-if>
+            <sc-if value="{{ cityFilterOpen }}" hint-placeholder-val="{{ false }}">
+              <div style="position:absolute;top:100%;left:10px;margin-top:4px;z-index:40;background:var(--color-bg);border:1px solid var(--color-divider);border-radius:var(--radius-md);box-shadow:var(--shadow-md);padding:12px;text-transform:none;letter-spacing:normal;font-size:12px;font-weight:400;width:200px;max-height:260px;overflow-y:auto;">
+                <sc-for list="{{ cityOptions }}" as="opt" hint-placeholder-count="12">
+                  <label style="display:flex;align-items:center;gap:8px;padding:5px 2px;cursor:pointer;">
+                    <input type="checkbox" checked="{{ opt.checked }}" onChange="{{ opt.onToggle }}" style="width:14px;height:14px;accent-color:var(--color-accent);"/>
+                    {{ opt.label }}
+                  </label>
+                </sc-for>
+                <div style="display:flex;justify-content:space-between;margin-top:8px;border-top:1px solid var(--color-divider);padding-top:8px;">
+                  <button style="background:transparent;color:var(--color-accent);border:none;padding:4px;font-size:11px;font-weight:600;cursor:pointer;" onClick="{{ clearCityFilterClick }}">Clear</button>
+                  <button style="background:var(--color-accent);color:var(--color-bg);border:none;border-radius:var(--radius-md);padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer;" onClick="{{ toggleCityFilterClick }}">Done</button>
+                </div>
+              </div>
+            </sc-if>
+          </th>
+
+          <th style="text-align:left;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 60%, transparent);padding:10px;border-bottom:1px solid var(--color-divider);position:relative;">
+            <span style="cursor:pointer;user-select:none;display:inline-block;padding:2px 6px;border-radius:3px;background:{{ createdHeaderBg }};" onClick="{{ toggleCreatedFilterClick }}">Created ▾</span>
+            <sc-if value="{{ createdHasActive }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:10px;font-weight:400;color:var(--color-neutral-700);margin-top:3px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-transform:none;letter-spacing:normal;">{{ createdRangeCaption }}</div>
+            </sc-if>
+            <sc-if value="{{ createdFilterOpen }}" hint-placeholder-val="{{ false }}">
+              <div style="position:absolute;top:100%;left:10px;margin-top:4px;z-index:40;background:var(--color-bg);border:1px solid var(--color-divider);border-radius:var(--radius-md);box-shadow:var(--shadow-md);padding:14px;text-transform:none;letter-spacing:normal;font-size:12px;font-weight:400;width:230px;">
+                <div style="display:flex;align-items:center;gap:5px;">
+                  <input type="date" value="{{ dateFrom }}" onChange="{{ setDateFrom }}" style="width:100px;min-height:32px;padding:5px 6px;font-size:12px;background:var(--color-surface);border:1px solid var(--color-divider);border-radius:var(--radius-md);"/>
+                  <span style="color:var(--color-neutral-500);">–</span>
+                  <input type="date" value="{{ dateTo }}" onChange="{{ setDateTo }}" style="width:100px;min-height:32px;padding:5px 6px;font-size:12px;background:var(--color-surface);border:1px solid var(--color-divider);border-radius:var(--radius-md);"/>
+                </div>
+                <div style="font-size:11px;color:var(--color-neutral-600);margin-top:8px;">{{ createdRangeCaption }}</div>
+                <div style="display:flex;justify-content:space-between;margin-top:10px;">
+                  <button style="background:transparent;color:var(--color-accent);border:none;padding:4px;font-size:11px;font-weight:600;cursor:pointer;" onClick="{{ clearCreatedFilterClick }}">Clear</button>
+                  <button style="background:var(--color-accent);color:var(--color-bg);border:none;border-radius:var(--radius-md);padding:5px 12px;font-size:11px;font-weight:600;cursor:pointer;" onClick="{{ toggleCreatedFilterClick }}">Done</button>
+                </div>
+              </div>
+            </sc-if>
+          </th>
+
+          <th style="text-align:left;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 60%, transparent);padding:10px;border-bottom:1px solid var(--color-divider);">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:2px 6px;border-radius:3px;background:{{ rtHeaderBg }};width:fit-content;">
+              <input type="checkbox" checked="{{ rtOnly }}" onChange="{{ rtCheckboxHandler }}" style="width:13px;height:13px;accent-color:var(--color-accent-2);"/>
+              RT
+            </label>
+          </th>
+          <th style="text-align:left;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:color-mix(in srgb, var(--color-text) 60%, transparent);padding:10px;border-bottom:1px solid var(--color-divider);"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <sc-for list="{{ pagedRows }}" as="row" hint-placeholder-count="10">
+          <tr style="cursor:pointer;" onClick="{{ row.onOpen }}" style-hover="background:color-mix(in srgb, var(--color-text) 4%, transparent);">
+            <td style="padding:12px 10px;border-bottom:1px solid color-mix(in srgb, var(--color-text) 8%, transparent);">
+              <div style="font-weight:600;">{{ row.nameDisplay }}</div>
+              <div style="display:flex;align-items:center;gap:6px;margin-top:2px;">
+                <span style="font-size:12px;color:var(--color-neutral-600);">{{ row.phone }}</span>
+                <button style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;border:1px solid var(--color-accent);background:var(--color-accent-100);color:var(--color-accent-700);cursor:pointer;padding:0;" onClick="{{ row.onCall }}" title="Call">
+                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.6 10.8a15.9 15.9 0 0 0 6.6 6.6l2.2-2.2a1.6 1.6 0 0 1 1.6-.4c1.2.4 2.5.6 3.8.6a1.6 1.6 0 0 1 1.6 1.6V21a1.6 1.6 0 0 1-1.6 1.6C11.7 22.6 1.4 12.3 1.4 3.6A1.6 1.6 0 0 1 3 2h3.4A1.6 1.6 0 0 1 8 3.6c0 1.3.2 2.6.6 3.8a1.6 1.6 0 0 1-.4 1.6z"/></svg>
+                </button>
+              </div>
+            </td>
+            <td style="padding:12px 10px;border-bottom:1px solid color-mix(in srgb, var(--color-text) 8%, transparent);">
+              <span style="display:inline-flex;font-size:11px;padding:3px 10px;border-radius:3px;background:{{ row.stageBg }};color:{{ row.stageColor }};">{{ row.stageLabel }}</span>
+            </td>
+            <td style="padding:12px 10px;border-bottom:1px solid color-mix(in srgb, var(--color-text) 8%, transparent);">{{ row.taskDateDisplay }}</td>
+            <td style="padding:12px 10px;border-bottom:1px solid color-mix(in srgb, var(--color-text) 8%, transparent);">
+              <div>{{ row.followupDisplay }}</div>
+              <sc-if value="{{ row.hasFollowupTag }}" hint-placeholder-val="{{ false }}">
+                <div style="font-size:11px;font-weight:600;color:{{ row.followupTagColor }};margin-top:2px;">{{ row.followupTagText }}</div>
+              </sc-if>
+            </td>
+            <td style="padding:12px 10px;border-bottom:1px solid color-mix(in srgb, var(--color-text) 8%, transparent);">{{ row.owner }}</td>
+            <td style="padding:12px 10px;border-bottom:1px solid color-mix(in srgb, var(--color-text) 8%, transparent);">
+              <div>{{ row.source }}</div>
+              <div style="font-size:12px;color:var(--color-neutral-600);margin-top:2px;">{{ row.campaign }}</div>
+            </td>
+            <td style="padding:12px 10px;border-bottom:1px solid color-mix(in srgb, var(--color-text) 8%, transparent);">
+              <div>{{ row.city }}</div>
+              <div style="font-size:12px;color:var(--color-neutral-600);margin-top:2px;">{{ row.pin }}</div>
+            </td>
+            <td style="padding:12px 10px;border-bottom:1px solid color-mix(in srgb, var(--color-text) 8%, transparent);">{{ row.createdDisplay }}</td>
+            <td style="padding:12px 10px;border-bottom:1px solid color-mix(in srgb, var(--color-text) 8%, transparent);">
+              <sc-if value="{{ row.hasRT }}" hint-placeholder-val="{{ false }}">
+                <span style="display:inline-flex;font-size:10px;font-weight:700;letter-spacing:.03em;padding:3px 8px;border-radius:3px;border:1px solid var(--color-accent-2);color:var(--color-accent-2-700);">RT</span>
+              </sc-if>
+            </td>
+            <td style="padding:12px 10px;border-bottom:1px solid color-mix(in srgb, var(--color-text) 8%, transparent);color:var(--color-accent);font-size:13px;">View →</td>
+          </tr>
+        </sc-for>
+      </tbody>
+    </table>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-top:22px;">
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div style="font-size:13px;color:var(--color-neutral-600);">Showing {{ pageStartDisplay }}–{{ pageEndDisplay }} of {{ filteredCount }}</div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <label style="font-size:12px;color:var(--color-neutral-600);">Show</label>
+          <select value="{{ pageSize }}" onChange="{{ setPageSizeHandler }}" style="min-height:30px;padding:4px 8px;font-size:12px;background:var(--color-bg);border:1px solid var(--color-divider);border-radius:var(--radius-md);">
+            <option value="10">10</option>
+            <option value="20">20</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <button style="background:transparent;color:var(--color-text);border:1px solid var(--color-divider);border-radius:var(--radius-md);padding:7px 12px;font-size:13px;cursor:pointer;" onClick="{{ prevPageClick }}">←</button>
+        <sc-for list="{{ pageButtons }}" as="p" hint-placeholder-count="3">
+          <button style="min-width:32px;border-radius:var(--radius-md);padding:7px 10px;font-size:13px;cursor:pointer;background:{{ p.bg }};color:{{ p.color }};border:1px solid var(--color-divider);" onClick="{{ p.onClick }}">{{ p.num }}</button>
+        </sc-for>
+        <button style="background:transparent;color:var(--color-text);border:1px solid var(--color-divider);border-radius:var(--radius-md);padding:7px 12px;font-size:13px;cursor:pointer;" onClick="{{ nextPageClick }}">→</button>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ isDetail }}" hint-placeholder-val="{{ false }}">
+  <div style="padding:12px 48px 80px;" data-screen-label="Lead Detail">
+    <button style="background:transparent;color:var(--color-accent);border:none;padding:6px 4px;font-family:var(--font-heading);font-weight:600;font-size:14px;cursor:pointer;" onClick="{{ backToLeadsClick }}">‹ Back to Leads</button>
+
+    <div style="display:flex;gap:32px;align-items:flex-start;margin-top:20px;flex-wrap:wrap;">
+      <div style="width:300px;flex:none;display:flex;flex-direction:column;gap:20px;">
+        <div style="background:var(--color-surface);border-radius:var(--radius-md);padding:24px;display:flex;flex-direction:column;gap:16px;">
+          <div style="width:56px;height:56px;border-radius:50%;background:var(--color-accent-100);color:var(--color-accent-800);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:600;">{{ detail.initials }}</div>
+          <div>
+            <h3 style="margin:0 0 8px;">{{ detail.nameDisplay }}</h3>
+            <span style="display:inline-flex;font-size:11px;padding:3px 10px;border-radius:3px;background:{{ detail.stageBg }};color:{{ detail.stageColor }};">{{ detail.stageLabel }}</span>
+            <sc-if value="{{ detail.reTriggered }}" hint-placeholder-val="{{ false }}">
+              <span style="display:inline-flex;margin-left:6px;font-size:10px;font-weight:700;letter-spacing:.03em;padding:3px 8px;border-radius:3px;border:1px solid var(--color-accent-2);color:var(--color-accent-2-700);">RT</span>
+            </sc-if>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:10px;font-size:13px;">
+            <div style="display:flex;gap:8px;align-items:center;">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="color:var(--color-accent-700);flex:none;"><path d="M6.6 10.8a15.9 15.9 0 0 0 6.6 6.6l2.2-2.2a1.6 1.6 0 0 1 1.6-.4c1.2.4 2.5.6 3.8.6a1.6 1.6 0 0 1 1.6 1.6V21a1.6 1.6 0 0 1-1.6 1.6C11.7 22.6 1.4 12.3 1.4 3.6A1.6 1.6 0 0 1 3 2h3.4A1.6 1.6 0 0 1 8 3.6c0 1.3.2 2.6.6 3.8a1.6 1.6 0 0 1-.4 1.6z"/></svg>
+              {{ detail.phone }}
+              <button style="display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:var(--radius-md);border:1px solid var(--color-accent);background:var(--color-accent-100);color:var(--color-accent-700);cursor:pointer;font-size:12px;font-weight:600;" onClick="{{ callDetailClick }}">
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.6 10.8a15.9 15.9 0 0 0 6.6 6.6l2.2-2.2a1.6 1.6 0 0 1 1.6-.4c1.2.4 2.5.6 3.8.6a1.6 1.6 0 0 1 1.6 1.6V21a1.6 1.6 0 0 1-1.6 1.6C11.7 22.6 1.4 12.3 1.4 3.6A1.6 1.6 0 0 1 3 2h3.4A1.6 1.6 0 0 1 8 3.6c0 1.3.2 2.6.6 3.8a1.6 1.6 0 0 1-.4 1.6z"/></svg>
+                Call
+              </button>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="color:var(--color-accent-700);flex:none;"><path d="M3 5h18v14H3z"/><path d="M3 5l9 7 9-7"/></svg>
+              {{ detail.email }}
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="color:var(--color-accent-700);flex:none;"><path d="M12 21s7-6.5 7-12a7 7 0 1 0-14 0c0 5.5 7 12 7 12z"/><circle cx="12" cy="9" r="2.4"/></svg>
+              {{ detail.city }}, {{ detail.pin }}
+            </div>
+          </div>
+        </div>
+
+        <div style="background:var(--color-surface);border-radius:var(--radius-md);padding:22px;display:flex;flex-direction:column;gap:12px;">
+          <h5 style="margin:0;">Lead Properties</h5>
+          <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--color-neutral-600);">Owner</span><span>{{ detail.owner }}</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--color-neutral-600);">Source</span><span>{{ detail.source }}</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--color-neutral-600);">Campaign</span><span>{{ detail.campaign }}</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--color-neutral-600);">Created On</span><span>{{ detail.createdDisplay }}</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--color-neutral-600);">Lead Score</span><span>{{ detail.leadScore }}</span></div>
+          <div style="display:flex;justify-content:space-between;font-size:13px;"><span style="color:var(--color-neutral-600);">Attempts</span><span>{{ detail.attempts }}</span></div>
+        </div>
+
+        <div style="background:var(--color-surface);border-radius:var(--radius-md);padding:22px;display:flex;flex-direction:column;gap:10px;">
+          <label style="display:block;font-size:11px;color:color-mix(in srgb, var(--color-text) 70%, transparent);">Adjust stage manually</label>
+          <select value="{{ detail.stage }}" onChange="{{ manualStageChangeHandler }}" style="width:100%;min-height:36px;padding:6px 10px;font-size:13px;background:var(--color-bg);border:1px solid var(--color-divider);border-radius:var(--radius-md);">
+            <option value="1">Not Attempted</option>
+            <option value="2">Attempted</option>
+            <option value="3">Connected</option>
+            <option value="4">Connected &amp; Pitched</option>
+            <option value="5">Attempted 3×, Not Connected</option>
+            <option value="6">Test Ride Booked</option>
+            <option value="7">Sale Completed (No Docs)</option>
+            <option value="8">Sale Completed (With Docs)</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="flex:1;min-width:440px;display:flex;flex-direction:column;gap:20px;">
+
+        <div style="background:var(--color-surface);border-radius:var(--radius-md);padding:22px;">
+          <h5 style="margin:0 0 14px;">Next Follow-up</h5>
+          <div style="font-size:13px;margin-bottom:12px;">Current: <strong>{{ detail.followupDisplay }}</strong></div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+            <div style="flex:1;min-width:220px;">
+              <input type="datetime-local" value="{{ followupDraft }}" max="{{ followupMax }}" onChange="{{ updateFollowupDraftHandler }}" style="width:100%;min-height:36px;padding:6px 10px;font-size:13px;background:var(--color-bg);border:1px solid var(--color-divider);border-radius:var(--radius-md);"/>
+              <div style="font-size:11px;color:var(--color-neutral-600);margin-top:5px;">Can't be scheduled more than 15 days out.</div>
+            </div>
+            <button style="background:var(--color-accent);color:var(--color-bg);border:1px solid transparent;border-radius:var(--radius-md);padding:9px 16px;font-family:var(--font-heading);font-weight:600;font-size:13px;cursor:pointer;" style-hover="background:var(--color-accent-600);" onClick="{{ saveFollowupClick }}">Save</button>
+          </div>
+        </div>
+
+        <div style="background:var(--color-surface);border-radius:var(--radius-md);padding:22px;">
+          <h5 style="margin:0 0 14px;">Remarks</h5>
+          <sc-if value="{{ callFormClosed }}" hint-placeholder-val="{{ true }}">
+            <button style="background:transparent;color:var(--color-text);border:1px solid var(--color-divider);border-radius:var(--radius-md);padding:9px 16px;font-family:var(--font-heading);font-weight:600;font-size:13px;cursor:pointer;" onClick="{{ openCallFormClick }}">+ Log a Call</button>
+          </sc-if>
+          <sc-if value="{{ callFormOpenVal }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:14px;">
+              <div style="max-width:280px;">
+                <label style="display:block;font-size:11px;margin-bottom:5px;color:color-mix(in srgb, var(--color-text) 70%, transparent);">Disposition</label>
+                <select value="{{ callDisposition }}" onChange="{{ updateCallDispositionHandler }}" style="width:100%;min-height:36px;padding:6px 10px;font-size:13px;background:var(--color-bg);border:1px solid var(--color-divider);border-radius:var(--radius-md);">
+                  <option value="not_reachable">Not Reachable</option>
+                  <option value="switched_off">Switched Off</option>
+                  <option value="busy">Busy</option>
+                  <option value="ringing_no_response">Ringing - No Response</option>
+                  <option value="wrong_number">Wrong Number</option>
+                  <option value="answered_interested">Answered - Interested</option>
+                  <option value="answered_callback">Answered - Call Back Later</option>
+                  <option value="answered_not_interested">Answered - Not Interested</option>
+                </select>
+              </div>
+              <sc-if value="{{ callOutcomeIsConnected }}" hint-placeholder-val="{{ false }}">
+                <div style="max-width:220px;">
+                  <label style="display:block;font-size:11px;margin-bottom:5px;color:color-mix(in srgb, var(--color-text) 70%, transparent);">Call duration (mm:ss)</label>
+                  <input type="text" placeholder="e.g. 2:30" value="{{ callDuration }}" onChange="{{ updateCallDurationHandler }}" style="width:100%;min-height:36px;padding:6px 10px;font-size:13px;background:var(--color-bg);border:1px solid var(--color-divider);border-radius:var(--radius-md);"/>
+                  <div style="font-size:11px;color:var(--color-neutral-600);margin-top:6px;">Over 2 minutes moves this lead to "Connected &amp; Pitched".</div>
+                </div>
+              </sc-if>
+              <div>
+                <label style="display:block;font-size:11px;margin-bottom:5px;color:color-mix(in srgb, var(--color-text) 70%, transparent);">Remarks</label>
+                <textarea value="{{ callRemarks }}" onChange="{{ updateCallRemarksHandler }}" placeholder="Add any notes from the call…" style="width:100%;min-height:70px;padding:8px 10px;font-size:13px;background:var(--color-bg);border:1px solid var(--color-divider);border-radius:var(--radius-md);resize:vertical;"></textarea>
+              </div>
+              <div style="display:flex;gap:10px;">
+                <button style="background:var(--color-accent);color:var(--color-bg);border:1px solid transparent;border-radius:var(--radius-md);padding:9px 16px;font-family:var(--font-heading);font-weight:600;font-size:13px;cursor:pointer;" onClick="{{ saveCallOutcomeClick }}">Save Remarks</button>
+                <button style="background:transparent;color:var(--color-text);border:1px solid var(--color-divider);border-radius:var(--radius-md);padding:9px 16px;font-size:13px;cursor:pointer;" onClick="{{ cancelCallFormClick }}">Cancel</button>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+
+        <div style="background:var(--color-surface);border-radius:var(--radius-md);padding:22px;">
+          <h5 style="margin:0 0 14px;">Test Ride</h5>
+          <sc-if value="{{ detail.hasTestRide }}" hint-placeholder-val="{{ false }}">
+            <div style="font-size:13px;display:flex;flex-direction:column;gap:6px;margin-bottom:12px;">
+              <div><span style="color:var(--color-neutral-600);">Store:</span> {{ detail.testRideStoreDisplay }}</div>
+              <div><span style="color:var(--color-neutral-600);">When:</span> {{ detail.testRideDateDisplay }}</div>
+              <div><span style="color:var(--color-neutral-600);">Dealer:</span> {{ detail.testRideDealer }}</div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ testRideButtonVisible }}" hint-placeholder-val="{{ true }}">
+            <button style="background:transparent;color:var(--color-text);border:1px solid var(--color-divider);border-radius:var(--radius-md);padding:9px 16px;font-family:var(--font-heading);font-weight:600;font-size:13px;cursor:pointer;" onClick="{{ openTestRideFormClick }}">{{ testRideButtonLabel }}</button>
+          </sc-if>
+          <sc-if value="{{ testRideFormOpenVal }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:12px;">
+              <div>
+                <label style="display:block;font-size:11px;margin-bottom:5px;color:color-mix(in srgb, var(--color-text) 70%, transparent);">Date &amp; time</label>
+                <input type="datetime-local" value="{{ testRideDate }}" onChange="{{ updateTestRideDateHandler }}" style="width:100%;max-width:260px;min-height:36px;padding:6px 10px;font-size:13px;background:var(--color-bg);border:1px solid var(--color-divider);border-radius:var(--radius-md);"/>
+              </div>
+              <div>
+                <label style="display:block;font-size:11px;margin-bottom:5px;color:color-mix(in srgb, var(--color-text) 70%, transparent);">Store / Location</label>
+                <select value="{{ testRideStore }}" onChange="{{ updateTestRideStoreHandler }}" style="width:100%;max-width:280px;min-height:36px;padding:6px 10px;font-size:13px;background:var(--color-bg);border:1px solid var(--color-divider);border-radius:var(--radius-md);">
+                  <option value="">Select store…</option>
+                  <option value="MG Road Experience Store">MG Road Experience Store</option>
+                  <option value="Whitefield Hub">Whitefield Hub</option>
+                  <option value="Andheri West Showroom">Andheri West Showroom</option>
+                  <option value="Salt Lake Studio">Salt Lake Studio</option>
+                  <option value="Anna Nagar Store">Anna Nagar Store</option>
+                </select>
+              </div>
+              <div>
+                <label style="display:block;font-size:11px;margin-bottom:5px;color:color-mix(in srgb, var(--color-text) 70%, transparent);">Dealer / Rep name</label>
+                <input type="text" value="{{ testRideDealer }}" onChange="{{ updateTestRideDealerHandler }}" style="width:100%;max-width:280px;min-height:36px;padding:6px 10px;font-size:13px;background:var(--color-bg);border:1px solid var(--color-divider);border-radius:var(--radius-md);"/>
+              </div>
+              <div style="display:flex;gap:10px;">
+                <button style="background:var(--color-accent);color:var(--color-bg);border:1px solid transparent;border-radius:var(--radius-md);padding:9px 16px;font-family:var(--font-heading);font-weight:600;font-size:13px;cursor:pointer;" onClick="{{ saveTestRideClick }}">Save</button>
+                <button style="background:transparent;color:var(--color-text);border:1px solid var(--color-divider);border-radius:var(--radius-md);padding:9px 16px;font-size:13px;cursor:pointer;" onClick="{{ cancelTestRideFormClick }}">Cancel</button>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+
+        <div style="background:var(--color-surface);border-radius:var(--radius-md);padding:22px;">
+          <h5 style="margin:0 0 14px;">Sale</h5>
+          <sc-if value="{{ detail.hasSale }}" hint-placeholder-val="{{ false }}">
+            <div style="font-size:13px;display:flex;flex-direction:column;gap:6px;margin-bottom:12px;">
+              <div><span style="color:var(--color-neutral-600);">Model:</span> {{ detail.saleModel }}</div>
+              <div><span style="color:var(--color-neutral-600);">Amount:</span> ₹{{ detail.saleAmount }}</div>
+              <sc-if value="{{ detail.hasInvoice }}" hint-placeholder-val="{{ false }}">
+                <div><span style="color:var(--color-neutral-600);">Invoice:</span> {{ detail.saleInvoice }} — {{ detail.saleFile }}</div>
+              </sc-if>
+              <sc-if value="{{ detail.missingInvoice }}" hint-placeholder-val="{{ false }}">
+                <div style="color:var(--color-accent-2-700);font-weight:600;">Documents pending</div>
+              </sc-if>
+            </div>
+          </sc-if>
+          <sc-if value="{{ saleButtonVisible }}" hint-placeholder-val="{{ true }}">
+            <button style="background:transparent;color:var(--color-text);border:1px solid var(--color-divider);border-radius:var(--radius-md);padding:9px 16px;font-family:var(--font-heading);font-weight:600;font-size:13px;cursor:pointer;" onClick="{{ openSaleFormClick }}">{{ saleButtonLabel }}</button>
+          </sc-if>
+          <sc-if value="{{ saleFormOpenVal }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:12px;">
+              <div style="display:inline-flex;border:1px solid var(--color-divider);border-radius:var(--radius-md);overflow:hidden;width:fit-content;">
+                <button style="padding:8px 14px;font-size:13px;cursor:pointer;border:none;background:{{ saleDocsNoBg }};color:{{ saleDocsNoColor }};" onClick="{{ setSaleDocsNo }}">Without docs</button>
+                <button style="padding:8px 14px;font-size:13px;cursor:pointer;border:none;border-left:1px solid var(--color-divider);background:{{ saleDocsYesBg }};color:{{ saleDocsYesColor }};" onClick="{{ setSaleDocsYes }}">With docs</button>
+              </div>
+              <div style="display:flex;gap:12px;flex-wrap:wrap;">
+                <div style="flex:1;min-width:160px;">
+                  <label style="display:block;font-size:11px;margin-bottom:5px;color:color-mix(in srgb, var(--color-text) 70%, transparent);">Vehicle model / variant</label>
+                  <input type="text" value="{{ saleModel }}" onChange="{{ updateSaleModelHandler }}" style="width:100%;min-height:36px;padding:6px 10px;font-size:13px;background:var(--color-bg);border:1px solid var(--color-divider);border-radius:var(--radius-md);"/>
+                </div>
+                <div style="flex:1;min-width:140px;">
+                  <label style="display:block;font-size:11px;margin-bottom:5px;color:color-mix(in srgb, var(--color-text) 70%, transparent);">Sale amount (₹)</label>
+                  <input type="text" value="{{ saleAmount }}" onChange="{{ updateSaleAmountHandler }}" style="width:100%;min-height:36px;padding:6px 10px;font-size:13px;background:var(--color-bg);border:1px solid var(--color-divider);border-radius:var(--radius-md);"/>
+                </div>
+              </div>
+              <sc-if value="{{ saleDocsIsYes }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;gap:12px;flex-wrap:wrap;">
+                  <div style="flex:1;min-width:160px;">
+                    <label style="display:block;font-size:11px;margin-bottom:5px;color:color-mix(in srgb, var(--color-text) 70%, transparent);">Invoice number</label>
+                    <input type="text" value="{{ saleInvoiceNo }}" onChange="{{ updateSaleInvoiceNoHandler }}" style="width:100%;min-height:36px;padding:6px 10px;font-size:13px;background:var(--color-bg);border:1px solid var(--color-divider);border-radius:var(--radius-md);"/>
+                  </div>
+                  <div style="flex:1;min-width:200px;">
+                    <label style="display:block;font-size:11px;margin-bottom:5px;color:color-mix(in srgb, var(--color-text) 70%, transparent);">Upload invoice</label>
+                    <label style="display:flex;align-items:center;gap:8px;min-height:36px;padding:6px 10px;font-size:13px;background:var(--color-bg);border:1px dashed var(--color-divider);border-radius:var(--radius-md);cursor:pointer;color:var(--color-neutral-600);">
+                      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex:none;"><path d="M7 12l7-7a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-2.8-2.8L15 8"/></svg>
+                      {{ saleFileLabel }}
+                      <input type="file" accept=".pdf,.jpg,.png" onChange="{{ onInvoiceFileHandler }}" style="display:none;"/>
+                    </label>
+                  </div>
+                </div>
+              </sc-if>
+              <div style="display:flex;gap:10px;">
+                <button style="background:var(--color-accent);color:var(--color-bg);border:1px solid transparent;border-radius:var(--radius-md);padding:9px 16px;font-family:var(--font-heading);font-weight:600;font-size:13px;cursor:pointer;" onClick="{{ saveSaleClick }}">Save Sale</button>
+                <button style="background:transparent;color:var(--color-text);border:1px solid var(--color-divider);border-radius:var(--radius-md);padding:9px 16px;font-size:13px;cursor:pointer;" onClick="{{ cancelSaleFormClick }}">Cancel</button>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+
+        <div style="background:var(--color-surface);border-radius:var(--radius-md);padding:22px;">
+          <h5 style="margin:0 0 14px;">Activity</h5>
+          <sc-for list="{{ detail.activity }}" as="a" hint-placeholder-count="4">
+            <div style="padding:11px 0;border-bottom:1px solid color-mix(in srgb, var(--color-text) 8%, transparent);font-size:13px;">
+              <sc-if value="{{ a.isCall }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;gap:10px;">
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="{{ a.iconColor }}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex:none;margin-top:2px;"><path d="M6.6 10.8a15.9 15.9 0 0 0 6.6 6.6l2.2-2.2a1.6 1.6 0 0 1 1.6-.4c1.2.4 2.5.6 3.8.6a1.6 1.6 0 0 1 1.6 1.6V21a1.6 1.6 0 0 1-1.6 1.6C11.7 22.6 1.4 12.3 1.4 3.6A1.6 1.6 0 0 1 3 2h3.4A1.6 1.6 0 0 1 8 3.6c0 1.3.2 2.6.6 3.8a1.6 1.6 0 0 1-.4 1.6z"/></svg>
+                  <div style="flex:1;">
+                    <div style="color:var(--color-accent-700);font-weight:600;">{{ a.text }}</div>
+                    <sc-if value="{{ a.hasDuration }}" hint-placeholder-val="{{ false }}">
+                      <div style="color:var(--color-neutral-600);font-size:12px;margin-top:2px;">Duration: {{ a.durationDisplay }}</div>
+                    </sc-if>
+                    <sc-if value="{{ a.showNoRecording }}" hint-placeholder-val="{{ false }}">
+                      <div style="color:var(--color-neutral-500);font-size:12px;margin-top:4px;">No recording available</div>
+                    </sc-if>
+                    <sc-if value="{{ a.showPlayer }}" hint-placeholder-val="{{ false }}">
+                      <div style="display:flex;align-items:center;gap:8px;margin-top:6px;background:var(--color-bg);border:1px solid var(--color-divider);border-radius:var(--radius-md);padding:6px 10px;max-width:240px;font-size:11px;color:var(--color-neutral-600);">
+                        <span>▶</span><div style="flex:1;height:3px;background:var(--color-divider);border-radius:2px;"></div>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ a.hasRemarks }}" hint-placeholder-val="{{ false }}">
+                      <div style="color:var(--color-neutral-700);font-size:12px;margin-top:5px;font-style:italic;">"{{ a.remarks }}"</div>
+                    </sc-if>
+                    <div style="color:var(--color-neutral-500);font-size:11px;margin-top:5px;">{{ a.ts }}</div>
+                  </div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ a.isNote }}" hint-placeholder-val="{{ true }}">
+                <div style="display:flex;gap:14px;">
+                  <div style="color:var(--color-neutral-600);white-space:nowrap;min-width:110px;">{{ a.ts }}</div>
+                  <div>{{ a.text }}</div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <sc-if value="{{ quickAddOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;inset:0;display:grid;place-items:center;padding:20px;background:color-mix(in srgb, var(--color-neutral-900) 50%, transparent);z-index:50;">
+      <div style="width:min(420px,100%);display:flex;flex-direction:column;gap:16px;padding:26px;border-radius:var(--radius-lg);background:var(--color-surface);box-shadow:var(--shadow-lg);">
+        <h4 style="margin:0;">Quick Add Lead</h4>
+        <div>
+          <label style="display:block;font-size:12px;margin-bottom:5px;color:color-mix(in srgb, var(--color-text) 70%, transparent);">Customer name</label>
+          <input type="text" value="{{ quickName }}" onChange="{{ updateQuickNameHandler }}" style="width:100%;min-height:36px;padding:6px 10px;font-size:14px;background:var(--color-bg);border:1px solid var(--color-divider);border-radius:var(--radius-md);"/>
+        </div>
+        <div>
+          <label style="display:block;font-size:12px;margin-bottom:5px;color:color-mix(in srgb, var(--color-text) 70%, transparent);">Phone number</label>
+          <input type="text" value="{{ quickPhone }}" onChange="{{ updateQuickPhoneHandler }}" style="width:100%;min-height:36px;padding:6px 10px;font-size:14px;background:var(--color-bg);border:1px solid var(--color-divider);border-radius:var(--radius-md);"/>
+        </div>
+        <div style="display:flex;gap:12px;">
+          <div style="flex:1;">
+            <label style="display:block;font-size:12px;margin-bottom:5px;color:color-mix(in srgb, var(--color-text) 70%, transparent);">City</label>
+            <input type="text" value="{{ quickCity }}" onChange="{{ updateQuickCityHandler }}" style="width:100%;min-height:36px;padding:6px 10px;font-size:14px;background:var(--color-bg);border:1px solid var(--color-divider);border-radius:var(--radius-md);"/>
+          </div>
+          <div style="flex:1;">
+            <label style="display:block;font-size:12px;margin-bottom:5px;color:color-mix(in srgb, var(--color-text) 70%, transparent);">Pin code</label>
+            <input type="text" value="{{ quickPin }}" onChange="{{ updateQuickPinHandler }}" style="width:100%;min-height:36px;padding:6px 10px;font-size:14px;background:var(--color-bg);border:1px solid var(--color-divider);border-radius:var(--radius-md);"/>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:6px;">
+          <button style="background:transparent;color:var(--color-text);border:1px solid var(--color-divider);border-radius:var(--radius-md);padding:9px 16px;font-size:13px;cursor:pointer;" onClick="{{ closeQuickAddClick }}">Cancel</button>
+          <button style="background:var(--color-accent);color:var(--color-bg);border:1px solid transparent;border-radius:var(--radius-md);padding:9px 16px;font-family:var(--font-heading);font-weight:600;font-size:13px;cursor:pointer;" onClick="{{ submitQuickAddClick }}">Add Lead</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{ addOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;inset:0;display:grid;place-items:center;padding:20px;background:color-mix(in srgb, var(--color-neutral-900) 50%, transparent);z-index:50;">
+      <div style="width:min(480px,100%);display:flex;flex-direction:column;gap:16px;padding:26px;border-radius:var(--radius-lg);background:var(--color-surface);box-shadow:var(--shadow-lg);">
+        <h4 style="margin:0;">Add New Lead</h4>
+        <div>
+          <label style="display:block;font-size:12px;margin-bottom:5px;color:color-mix(in srgb, var(--color-text) 70%, transparent);">Customer name</label>
+          <input type="text" value="{{ addName }}" onChange="{{ updateAddNameHandler }}" style="width:100%;min-height:36px;padding:6px 10px;font-size:14px;background:var(--color-bg);border:1px solid var(--color-divider);border-radius:var(--radius-md);"/>
+        </div>
+        <div style="display:flex;gap:12px;">
+          <div style="flex:1;">
+            <label style="display:block;font-size:12px;margin-bottom:5px;color:color-mix(in srgb, var(--color-text) 70%, transparent);">Phone number</label>
+            <input type="text" value="{{ addPhone }}" onChange="{{ updateAddPhoneHandler }}" style="width:100%;min-height:36px;padding:6px 10px;font-size:14px;background:var(--color-bg);border:1px solid var(--color-divider);border-radius:var(--radius-md);"/>
+          </div>
+          <div style="flex:1;">
+            <label style="display:block;font-size:12px;margin-bottom:5px;color:color-mix(in srgb, var(--color-text) 70%, transparent);">Email</label>
+            <input type="text" value="{{ addEmail }}" onChange="{{ updateAddEmailHandler }}" style="width:100%;min-height:36px;padding:6px 10px;font-size:14px;background:var(--color-bg);border:1px solid var(--color-divider);border-radius:var(--radius-md);"/>
+          </div>
+        </div>
+        <div style="display:flex;gap:12px;">
+          <div style="flex:1;">
+            <label style="display:block;font-size:12px;margin-bottom:5px;color:color-mix(in srgb, var(--color-text) 70%, transparent);">City</label>
+            <input type="text" value="{{ addCity }}" onChange="{{ updateAddCityHandler }}" style="width:100%;min-height:36px;padding:6px 10px;font-size:14px;background:var(--color-bg);border:1px solid var(--color-divider);border-radius:var(--radius-md);"/>
+          </div>
+          <div style="flex:1;">
+            <label style="display:block;font-size:12px;margin-bottom:5px;color:color-mix(in srgb, var(--color-text) 70%, transparent);">Pin code</label>
+            <input type="text" value="{{ addPin }}" onChange="{{ updateAddPinHandler }}" style="width:100%;min-height:36px;padding:6px 10px;font-size:14px;background:var(--color-bg);border:1px solid var(--color-divider);border-radius:var(--radius-md);"/>
+          </div>
+        </div>
+        <div style="display:flex;gap:12px;">
+          <div style="flex:1;">
+            <label style="display:block;font-size:12px;margin-bottom:5px;color:color-mix(in srgb, var(--color-text) 70%, transparent);">Lead source</label>
+            <select value="{{ addSource }}" onChange="{{ updateAddSourceHandler }}" style="width:100%;min-height:36px;padding:6px 10px;font-size:14px;background:var(--color-bg);border:1px solid var(--color-divider);border-radius:var(--radius-md);">
+              <option value="Website">Website</option>
+              <option value="Facebook Ads">Facebook Ads</option>
+              <option value="Instagram Ads">Instagram Ads</option>
+              <option value="WhatsApp">WhatsApp</option>
+              <option value="Inbound Call">Inbound Call</option>
+              <option value="Referral">Referral</option>
+            </select>
+          </div>
+          <div style="flex:1;">
+            <label style="display:block;font-size:12px;margin-bottom:5px;color:color-mix(in srgb, var(--color-text) 70%, transparent);">Campaign</label>
+            <input type="text" value="{{ addCampaign }}" onChange="{{ updateAddCampaignHandler }}" style="width:100%;min-height:36px;padding:6px 10px;font-size:14px;background:var(--color-bg);border:1px solid var(--color-divider);border-radius:var(--radius-md);"/>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:6px;">
+          <button style="background:transparent;color:var(--color-text);border:1px solid var(--color-divider);border-radius:var(--radius-md);padding:9px 16px;font-size:13px;cursor:pointer;" onClick="{{ closeAddLeadClick }}">Cancel</button>
+          <button style="background:var(--color-accent);color:var(--color-bg);border:1px solid transparent;border-radius:var(--radius-md);padding:9px 16px;font-family:var(--font-heading);font-weight:600;font-size:13px;cursor:pointer;" onClick="{{ submitAddLeadClick }}">Add Lead</button>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+
+class Component extends DCLogic {
+  currentAgent = 'Aditya Narayan';
+  NOW = new Date(2026, 6, 29, 15, 30, 0).getTime();
+  STAGES = {
+    1: { label: 'Not Attempted', bg: 'var(--color-neutral-200)', color: 'var(--color-neutral-800)', dot: 'var(--color-neutral-500)' },
+    2: { label: 'Attempted', bg: 'var(--color-neutral-200)', color: 'var(--color-neutral-800)', dot: 'var(--color-neutral-500)' },
+    3: { label: 'Connected', bg: 'var(--color-accent-100)', color: 'var(--color-accent-800)', dot: 'var(--color-accent-500)' },
+    4: { label: 'Connected & Pitched', bg: 'var(--color-accent-200)', color: 'var(--color-accent-800)', dot: 'var(--color-accent-600)' },
+    5: { label: 'Attempted 3×, Not Connected', bg: 'var(--color-accent-2-100)', color: 'var(--color-accent-2-800)', dot: 'var(--color-accent-2-500)' },
+    6: { label: 'Test Ride Booked', bg: 'var(--color-accent-300)', color: 'var(--color-accent-900)', dot: 'var(--color-accent-700)' },
+    7: { label: 'Sale Completed (No Docs)', bg: 'var(--color-accent-2-200)', color: 'var(--color-accent-2-800)', dot: 'var(--color-accent-2-600)' },
+    8: { label: 'Sale Completed (With Docs)', bg: 'var(--color-accent)', color: 'var(--color-bg)', dot: 'var(--color-accent-700)' }
+  };
+  DISPOSITIONS = [
+    { id: 'not_reachable', label: 'Not Reachable', connected: false },
+    { id: 'switched_off', label: 'Switched Off', connected: false },
+    { id: 'busy', label: 'Busy', connected: false },
+    { id: 'ringing_no_response', label: 'Ringing - No Response', connected: false },
+    { id: 'wrong_number', label: 'Wrong Number', connected: false },
+    { id: 'answered_interested', label: 'Answered - Interested', connected: true },
+    { id: 'answered_callback', label: 'Answered - Call Back Later', connected: true },
+    { id: 'answered_not_interested', label: 'Answered - Not Interested', connected: true }
+  ];
+  STAGE_ORDER = [1, 2, 3, 4, 5, 6, 7, 8];
+  SOURCE_LIST = ['Website', 'Facebook Ads', 'Instagram Ads', 'WhatsApp', 'Test Ride Page', 'Inbound Call', 'Referral', 'ExitIntentLeads'];
+  CITY_LIST = ['Chennai', 'Bengaluru', 'Ludhiana', 'Noida', 'Ernakulam', 'Mumbai', 'Pune', 'Hyderabad', 'Jaipur', 'Delhi', 'Ahmedabad', 'Nagpur'];
+  AGENT_LIST = ['Aditya Narayan', 'Shreya Raj', 'Preeti Vankhede', 'Deep Malakar', 'Dip Roy', 'Shweta Madel', 'Yash Pawar'];
+  state = {
+    view: 'dashboard',
+    selectedId: null,
+    page: 1,
+    pageSize: 10,
+    search: '',
+    stageFilter: [],
+    sourceFilter: [],
+    cityFilter: [],
+    ownerFilter: [this.currentAgent],
+    dateFrom: '',
+    dateTo: '',
+    followupFrom: '',
+    followupTo: '',
+    taskFrom: this.toDateInputValue(this.NOW),
+    taskTo: this.toDateInputValue(this.NOW),
+    rtOnly: false,
+    openFilter: null,
+    quickAddOpen: false,
+    addOpen: false,
+    quickName: '', quickPhone: '', quickCity: '', quickPin: '',
+    addName: '', addPhone: '', addEmail: '', addCity: '', addPin: '', addSource: 'Website', addCampaign: '',
+    callForm: { open: false, disposition: 'not_reachable', duration: '', remarks: '' },
+    testRideForm: { open: false, date: '', store: '', dealer: '' },
+    saleForm: { open: false, docs: 'no', invoiceNo: '', amount: '', model: '', fileName: '' },
+    followupDraft: '',
+    toast: '',
+    leads: this.generateLeads()
+  };
+
+  mulberry32(a) {
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  toDateInputValue(ts) {
+    const d = new Date(ts);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+
+  generateLeads() {
+    const rng = this.mulberry32(42);
+    const pick = arr => arr[Math.floor(rng() * arr.length)];
+    const names = ['Sachin Dantwar', 'Surya Das', 'Ashish Bera', 'Ravi Kumar', 'Meera Nair', 'Karan Chopra', 'Divya Iyer', 'Rohit Sharma', 'Ananya Gupta', 'Vikram Singh', 'Priya Menon', 'Arjun Reddy', 'Neha Kulkarni', 'Suresh Pillai', 'Kavita Joshi', 'Manoj Tiwari', 'Pooja Shetty', 'Rahul Verma', 'Sneha Bhat', 'Amit Yadav', 'Ritu Malhotra', 'Deepak Rao', 'Swati Desai', 'Nikhil Bansal', 'Anjali Nambiar', 'Harish Chandra', 'Lakshmi Narayan', 'Gaurav Sethi', 'Isha Kapoor', 'Faisal Khan'];
+    const cities = [{ city: 'Chennai', pin: '600102' }, { city: 'Bengaluru', pin: '560041' }, { city: 'Ludhiana', pin: '141003' }, { city: 'Noida', pin: '201301' }, { city: 'Ernakulam', pin: '682037' }, { city: 'Mumbai', pin: '400104' }, { city: 'Pune', pin: '411045' }, { city: 'Hyderabad', pin: '500081' }, { city: 'Jaipur', pin: '302017' }, { city: 'Delhi', pin: '110085' }, { city: 'Ahmedabad', pin: '380015' }, { city: 'Nagpur', pin: '440010' }];
+    const sources = ['Website', 'Facebook Ads', 'Instagram Ads', 'WhatsApp', 'Test Ride Page', 'Inbound Call', 'Referral', 'ExitIntentLeads'];
+    const campaigns = ['Summer Ride 24', 'Diwali Dhamaka', 'Zero Down EMI', 'Monsoon Sale', 'Republic Day Offer', 'College Fest Drive', 'Always-On Search'];
+    const agents = ['Aditya Narayan', 'Shreya Raj', 'Preeti Vankhede', 'Deep Malakar', 'Dip Roy', 'Shweta Madel', 'Yash Pawar'];
+    const models = ['X2 Sea Green', 'X1 Jet Black', 'T-Rex+ Charcoal', 'Doodle V3 Red', 'EMX Trail White', 'S1 Neo Blue'];
+    const stores = ['MG Road Experience Store', 'Whitefield Hub', 'Andheri West Showroom', 'Salt Lake Studio', 'Anna Nagar Store'];
+    const noAnswerDispositions = ['Not Reachable', 'Switched Off', 'Busy', 'Ringing - No Response'];
+    const stageWeights = [[1, 0.34], [2, 0.20], [3, 0.11], [4, 0.09], [5, 0.08], [6, 0.07], [7, 0.05], [8, 0.06]];
+    const pickStage = () => { let r = rng(), acc = 0; for (const [id, w] of stageWeights) { acc += w; if (r <= acc) return id; } return 1; };
+
+    const leads = [];
+    for (let i = 0; i < 200; i++) {
+      const stage = pickStage();
+      const hasName = rng() > 0.22;
+      const nm = hasName ? names[i % names.length] : null;
+      const cityInfo = pick(cities);
+      const daysAgo = Math.floor(rng() * 90);
+      const createdOn = this.NOW - daysAgo * 86400000 - Math.floor(rng() * 80000) * 1000;
+      const owner = pick(agents);
+      const phone = '+91-9' + String(Math.floor(rng() * 900000000) + 100000000).slice(0, 8);
+      let followupAt = null;
+      if ([2, 3, 4, 5, 6].includes(stage) && rng() > 0.15) {
+        const offsetDays = Math.floor(rng() * 8) - 3;
+        followupAt = this.NOW + offsetDays * 86400000 + Math.floor(rng() * 10) * 3600000;
+      }
+      let taskDate = null;
+      if (stage <= 6) {
+        const offsetDays = Math.floor(rng() * 13) - 5;
+        taskDate = this.NOW + offsetDays * 86400000 + Math.floor(rng() * 10) * 3600000;
+      }
+      const reTriggered = stage <= 5 && rng() > 0.85;
+      const attempts = stage === 1 ? 0 : (stage === 5 ? 3 : Math.min(2, Math.floor(rng() * 3)));
+      const source = pick(sources);
+      const activity = [{ ts: createdOn, kind: 'note', text: 'Lead captured from ' + source }];
+      for (let c = 0; c < attempts; c++) {
+        const callTs = createdOn + (c + 1) * 3600000 * (4 + Math.floor(rng() * 20));
+        const dur = 5 + Math.floor(rng() * 50);
+        activity.unshift({ ts: callTs, kind: 'call', connected: false, text: 'Outbound Call: Did not answer a call by ' + owner + ' through ' + phone + '.', duration: dur, remarks: pick(noAnswerDispositions) });
+      }
+      if (stage >= 3) {
+        const connDur = stage >= 4 ? 120 + Math.floor(rng() * 180) : 40 + Math.floor(rng() * 70);
+        activity.unshift({ ts: createdOn + attempts * 3600000 * 6 + 3600000, kind: 'call', connected: true, text: 'Outbound Call: Was called by ' + owner + ' through ' + phone + '.', duration: connDur, remarks: stage >= 4 ? 'Answered - Interested' : 'Answered - Call Back Later' });
+      }
+      let testRide = null, sale = null;
+      if (stage >= 6) {
+        const trDate = createdOn + 2 * 86400000;
+        testRide = { date: trDate, store: pick(stores), dealer: pick(agents) };
+        activity.unshift({ ts: trDate, kind: 'note', text: 'Test ride booked at ' + testRide.store });
+      }
+      if (stage >= 7) {
+        const saleDate = createdOn + 4 * 86400000;
+        sale = { invoiceNo: stage === 8 ? 'INV-' + (10234 + i) : '', amount: String(28000 + Math.floor(rng() * 40000)), model: pick(models), fileName: stage === 8 ? 'invoice_' + (10234 + i) + '.pdf' : '' };
+        activity.unshift({ ts: saleDate, kind: 'note', text: stage === 8 ? 'Sale marked complete with documents' : 'Sale marked complete — documents pending' });
+      }
+      leads.push({
+        id: 'L' + (1000 + i), name: nm, phone, email: nm ? nm.toLowerCase().replace(' ', '.') + '@gmail.com' : '',
+        city: cityInfo.city, pin: cityInfo.pin, source, campaign: pick(campaigns), createdOn, owner, stage,
+        leadScore: Math.floor(rng() * 80) + (stage >= 6 ? 20 : 0), followupAt, taskDate, reTriggered, attempts, activity, testRide, sale
+      });
+    }
+    let todayCount = 0;
+    for (const l of leads) {
+      if (l.owner === this.currentAgent && l.stage <= 6 && todayCount < 6) {
+        l.taskDate = this.NOW - (this.NOW % 3600000) + todayCount * 3600000;
+        todayCount++;
+      }
+    }
+    return leads;
+  }
+
+  getStage(id) { return this.STAGES[id] || this.STAGES[1]; }
+  getDisposition(id) { return this.DISPOSITIONS.find(d => d.id === id) || this.DISPOSITIONS[0]; }
+  isSameDay(a, b) { const da = new Date(a), db = new Date(b); return da.getFullYear() === db.getFullYear() && da.getMonth() === db.getMonth() && da.getDate() === db.getDate(); }
+  formatDate(ts) { if (!ts) return '—'; return new Date(ts).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }); }
+  formatDateTime(ts) { if (!ts) return '—'; const d = new Date(ts); return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) + ', ' + d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }); }
+  formatDuration(sec) { if (sec == null) return ''; const m = Math.floor(sec / 60), s = sec % 60; return m > 0 ? (m + 'm ' + s + 's') : (s + 's'); }
+  initials(name) { if (!name) return '?'; const p = name.trim().split(' '); return (p[0][0] + (p[1] ? p[1][0] : '')).toUpperCase(); }
+  followupStatus(ts, stage) {
+    if (!ts || stage >= 7) return null;
+    if (ts < this.NOW) return 'overdue';
+    if (this.isSameDay(ts, this.NOW)) return 'today';
+    return 'upcoming';
+  }
+  parseDuration(str) {
+    if (!str) return 0;
+    const m = String(str).match(/(\d+)\D+(\d+)/);
+    if (m) return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+    const n = parseFloat(str);
+    return isNaN(n) ? 0 : Math.round(n * 60);
+  }
+  filterHeaderBg(active) { return active ? 'color-mix(in srgb, var(--color-process-yellow) 45%, var(--color-bg))' : 'transparent'; }
+  rangeCaption(fromStr, toStr) {
+    if (!fromStr && !toStr) return 'All time';
+    const f = fromStr ? this.formatDate(new Date(fromStr).getTime()) : '…';
+    const t = toStr ? this.formatDate(new Date(toStr).getTime()) : '…';
+    if (fromStr && toStr && fromStr === toStr) {
+      return fromStr === this.toDateInputValue(this.NOW) ? 'Today, ' + f : f;
+    }
+    return f + ' – ' + t;
+  }
+  showToast(msg) { this.setState({ toast: msg }); setTimeout(() => this.setState({ toast: '' }), 2400); }
+  updateLead(id, patch, activity) {
+    const entry = typeof activity === 'string' ? { ts: Date.now(), kind: 'note', text: activity } : activity;
+    this.setState(s => ({ leads: s.leads.map(l => l.id === id ? { ...l, ...patch, activity: [entry, ...l.activity] } : l) }));
+  }
+
+  goDashboardClick = () => this.setState({ view: 'dashboard' });
+  goLeadsClick = () => this.setState({ view: 'leads' });
+  backToLeadsClick = () => this.setState({ view: 'leads' });
+  openLead = (id) => this.setState({
+    view: 'detail', selectedId: id,
+    callForm: { open: false, disposition: 'not_reachable', duration: '', remarks: '' },
+    testRideForm: { open: false, date: '', store: '', dealer: '' },
+    saleForm: { open: false, docs: 'no', invoiceNo: '', amount: '', model: '', fileName: '' },
+    followupDraft: ''
+  });
+
+  setSearch = (e) => this.setState({ search: e.target.value, page: 1 });
+  setDateFrom = (e) => this.setState({ dateFrom: e.target.value, page: 1 });
+  setDateTo = (e) => this.setState({ dateTo: e.target.value, page: 1 });
+  setFollowupFrom = (e) => this.setState({ followupFrom: e.target.value, page: 1 });
+  setFollowupTo = (e) => this.setState({ followupTo: e.target.value, page: 1 });
+  setTaskFrom = (e) => this.setState({ taskFrom: e.target.value, page: 1 });
+  setTaskTo = (e) => this.setState({ taskTo: e.target.value, page: 1 });
+  toggleFilterPopover(key) { this.setState(s => ({ openFilter: s.openFilter === key ? null : key })); }
+  toggleStageFilterClick = () => this.toggleFilterPopover('stage');
+  toggleSourceFilterClick = () => this.toggleFilterPopover('source');
+  toggleCityFilterClick = () => this.toggleFilterPopover('city');
+  toggleOwnerFilterClick = () => this.toggleFilterPopover('owner');
+  toggleCreatedFilterClick = () => this.toggleFilterPopover('created');
+  toggleFollowupFilterClick = () => this.toggleFilterPopover('followup');
+  toggleTaskFilterClick = () => this.toggleFilterPopover('task');
+  toggleArrayFilter(key, value) {
+    this.setState(s => {
+      const arr = s[key];
+      const next = arr.includes(value) ? arr.filter(v => v !== value) : [...arr, value];
+      return { [key]: next, page: 1 };
+    });
+  }
+  clearStageFilterClick = () => this.setState({ stageFilter: [], page: 1 });
+  clearSourceFilterClick = () => this.setState({ sourceFilter: [], page: 1 });
+  clearCityFilterClick = () => this.setState({ cityFilter: [], page: 1 });
+  clearOwnerFilterClick = () => this.setState({ ownerFilter: [], page: 1 });
+  clearCreatedFilterClick = () => this.setState({ dateFrom: '', dateTo: '', page: 1 });
+  clearFollowupFilterClick = () => this.setState({ followupFrom: '', followupTo: '', page: 1 });
+  clearTaskFilterClick = () => this.setState({ taskFrom: '', taskTo: '', page: 1 });
+  rtCheckboxHandler = (e) => this.setState({ rtOnly: e.target.checked, page: 1 });
+  resetFiltersClick = () => this.setState({ search: '', stageFilter: [], sourceFilter: [], cityFilter: [], ownerFilter: [], dateFrom: '', dateTo: '', followupFrom: '', followupTo: '', taskFrom: '', taskTo: '', rtOnly: false, page: 1 });
+  prevPageClick = () => this.setState(s => ({ page: Math.max(1, s.page - 1) }));
+  nextPageClick = () => this.setState(s => ({ page: s.page + 1 }));
+  setPageSizeHandler = (e) => this.setState({ pageSize: parseInt(e.target.value, 10), page: 1 });
+  callDetailClick = () => {
+    const l = this.state.leads.find(x => x.id === this.state.selectedId);
+    if (l) this.showToast('Calling ' + l.phone + '…');
+  };
+
+  openQuickAddClick = () => this.setState({ quickAddOpen: true });
+  closeQuickAddClick = () => this.setState({ quickAddOpen: false });
+  updateQuickNameHandler = (e) => this.setState({ quickName: e.target.value });
+  updateQuickPhoneHandler = (e) => this.setState({ quickPhone: e.target.value });
+  updateQuickCityHandler = (e) => this.setState({ quickCity: e.target.value });
+  updateQuickPinHandler = (e) => this.setState({ quickPin: e.target.value });
+  submitQuickAddClick = () => {
+    const { quickName, quickPhone, quickCity, quickPin } = this.state;
+    if (!quickName || !quickPhone) { this.showToast('Name and phone are required'); return; }
+    const id = 'L' + Math.floor(2000 + Math.random() * 9000);
+    const lead = { id, name: quickName, phone: quickPhone, email: '', city: quickCity || '—', pin: quickPin || '—', source: 'Quick Add', campaign: '—', createdOn: Date.now(), owner: this.currentAgent, stage: 1, leadScore: 0, followupAt: null, taskDate: Date.now() + 86400000, reTriggered: false, attempts: 0, activity: [{ ts: Date.now(), kind: 'note', text: 'Lead captured via Quick Add' }], testRide: null, sale: null };
+    this.setState(s => ({ leads: [lead, ...s.leads], quickAddOpen: false, quickName: '', quickPhone: '', quickCity: '', quickPin: '' }));
+    this.showToast('Lead added');
+  };
+
+  openAddLeadClick = () => this.setState({ addOpen: true });
+  closeAddLeadClick = () => this.setState({ addOpen: false });
+  updateAddNameHandler = (e) => this.setState({ addName: e.target.value });
+  updateAddPhoneHandler = (e) => this.setState({ addPhone: e.target.value });
+  updateAddEmailHandler = (e) => this.setState({ addEmail: e.target.value });
+  updateAddCityHandler = (e) => this.setState({ addCity: e.target.value });
+  updateAddPinHandler = (e) => this.setState({ addPin: e.target.value });
+  updateAddSourceHandler = (e) => this.setState({ addSource: e.target.value });
+  updateAddCampaignHandler = (e) => this.setState({ addCampaign: e.target.value });
+  submitAddLeadClick = () => {
+    const { addName, addPhone, addEmail, addCity, addPin, addSource, addCampaign } = this.state;
+    if (!addName || !addPhone) { this.showToast('Name and phone are required'); return; }
+    const id = 'L' + Math.floor(2000 + Math.random() * 9000);
+    const lead = { id, name: addName, phone: addPhone, email: addEmail || '', city: addCity || '—', pin: addPin || '—', source: addSource, campaign: addCampaign || '—', createdOn: Date.now(), owner: this.currentAgent, stage: 1, leadScore: 0, followupAt: null, taskDate: Date.now() + 86400000, reTriggered: false, attempts: 0, activity: [{ ts: Date.now(), kind: 'note', text: 'Lead captured via ' + addSource }], testRide: null, sale: null };
+    this.setState(s => ({ leads: [lead, ...s.leads], addOpen: false, addName: '', addPhone: '', addEmail: '', addCity: '', addPin: '', addSource: 'Website', addCampaign: '' }));
+    this.showToast('Lead added');
+  };
+
+  updateFollowupDraftHandler = (e) => this.setState({ followupDraft: e.target.value });
+  saveFollowupClick = () => {
+    const val = this.state.followupDraft;
+    if (!val || !this.state.selectedId) return;
+    const ts = new Date(val).getTime();
+    if (ts > this.NOW + 15 * 86400000) { this.showToast("Follow-up can't be more than 15 days out"); return; }
+    this.updateLead(this.state.selectedId, { followupAt: ts }, 'Follow-up scheduled for ' + this.formatDateTime(ts));
+    this.showToast('Follow-up saved');
+  };
+
+  openCallFormClick = () => this.setState({ callForm: { open: true, disposition: 'not_reachable', duration: '', remarks: '' } });
+  cancelCallFormClick = () => this.setState({ callForm: { open: false, disposition: 'not_reachable', duration: '', remarks: '' } });
+  updateCallDispositionHandler = (e) => this.setState(s => ({ callForm: { ...s.callForm, disposition: e.target.value } }));
+  updateCallDurationHandler = (e) => this.setState(s => ({ callForm: { ...s.callForm, duration: e.target.value } }));
+  updateCallRemarksHandler = (e) => this.setState(s => ({ callForm: { ...s.callForm, remarks: e.target.value } }));
+  saveCallOutcomeClick = () => {
+    const lead = this.state.leads.find(l => l.id === this.state.selectedId);
+    if (!lead) return;
+    const { disposition, duration, remarks } = this.state.callForm;
+    const dispo = this.getDisposition(disposition);
+    let newStage, attempts = lead.attempts;
+    if (!dispo.connected) {
+      attempts = attempts + 1;
+      newStage = attempts >= 3 ? 5 : 2;
+    } else {
+      const sec = this.parseDuration(duration);
+      newStage = sec >= 120 ? 4 : 3;
+    }
+    const entry = {
+      ts: Date.now(), kind: 'call', connected: dispo.connected,
+      text: 'Outbound Call: ' + (dispo.connected ? 'Was called' : 'Did not answer a call') + ' by ' + this.currentAgent + ' through ' + lead.phone + '.',
+      duration: dispo.connected ? this.parseDuration(duration) : null,
+      remarks: dispo.label + (remarks ? ' — ' + remarks : '')
+    };
+    this.updateLead(lead.id, { stage: newStage, attempts }, entry);
+    this.setState({ callForm: { open: false, disposition: 'not_reachable', duration: '', remarks: '' } });
+    this.showToast('Stage updated to "' + this.getStage(newStage).label + '"');
+  };
+
+  openTestRideFormClick = () => this.setState({ testRideForm: { open: true, date: '', store: '', dealer: '' } });
+  cancelTestRideFormClick = () => this.setState({ testRideForm: { open: false, date: '', store: '', dealer: '' } });
+  updateTestRideDateHandler = (e) => this.setState(s => ({ testRideForm: { ...s.testRideForm, date: e.target.value } }));
+  updateTestRideStoreHandler = (e) => this.setState(s => ({ testRideForm: { ...s.testRideForm, store: e.target.value } }));
+  updateTestRideDealerHandler = (e) => this.setState(s => ({ testRideForm: { ...s.testRideForm, dealer: e.target.value } }));
+  saveTestRideClick = () => {
+    const { date, store, dealer } = this.state.testRideForm;
+    if (!date || !store) { this.showToast('Add date and store first'); return; }
+    this.updateLead(this.state.selectedId, { stage: 6, testRide: { date: new Date(date).getTime(), store, dealer } }, 'Test ride booked at ' + store);
+    this.setState({ testRideForm: { open: false, date: '', store: '', dealer: '' } });
+    this.showToast('Test ride booked');
+  };
+
+  openSaleFormClick = () => this.setState({ saleForm: { open: true, docs: 'no', invoiceNo: '', amount: '', model: '', fileName: '' } });
+  cancelSaleFormClick = () => this.setState({ saleForm: { open: false, docs: 'no', invoiceNo: '', amount: '', model: '', fileName: '' } });
+  setSaleDocsNo = () => this.setState(s => ({ saleForm: { ...s.saleForm, docs: 'no' } }));
+  setSaleDocsYes = () => this.setState(s => ({ saleForm: { ...s.saleForm, docs: 'yes' } }));
+  updateSaleModelHandler = (e) => this.setState(s => ({ saleForm: { ...s.saleForm, model: e.target.value } }));
+  updateSaleAmountHandler = (e) => this.setState(s => ({ saleForm: { ...s.saleForm, amount: e.target.value } }));
+  updateSaleInvoiceNoHandler = (e) => this.setState(s => ({ saleForm: { ...s.saleForm, invoiceNo: e.target.value } }));
+  onInvoiceFileHandler = (e) => { const f = e.target.files && e.target.files[0]; if (f) this.setState(s => ({ saleForm: { ...s.saleForm, fileName: f.name } })); };
+  saveSaleClick = () => {
+    const { docs, invoiceNo, amount, model, fileName } = this.state.saleForm;
+    const stage = docs === 'yes' ? 8 : 7;
+    const patch = { stage, sale: { invoiceNo: docs === 'yes' ? invoiceNo : '', amount, model, fileName: docs === 'yes' ? fileName : '' } };
+    this.updateLead(this.state.selectedId, patch, docs === 'yes' ? 'Sale marked complete with documents' : 'Sale marked complete — documents pending');
+    this.setState({ saleForm: { open: false, docs: 'no', invoiceNo: '', amount: '', model: '', fileName: '' } });
+    this.showToast('Sale recorded');
+  };
+
+  manualStageChangeHandler = (e) => {
+    const id = parseInt(e.target.value, 10);
+    this.updateLead(this.state.selectedId, { stage: id }, 'Stage manually changed to ' + this.getStage(id).label);
+    this.showToast('Stage updated');
+  };
+
+  buildRowVM(l) {
+    const st = this.getStage(l.stage);
+    const tag = this.followupStatus(l.followupAt, l.stage);
+    return {
+      id: l.id, nameDisplay: l.name || '[No Name]', phone: l.phone, city: l.city, pin: l.pin,
+      source: l.source, campaign: l.campaign, owner: l.owner, createdDisplay: this.formatDate(l.createdOn),
+      taskDateDisplay: l.taskDate ? this.formatDateTime(l.taskDate) : '—',
+      hasRT: !!l.reTriggered,
+      followupDisplay: l.followupAt ? this.formatDateTime(l.followupAt) : '—',
+      hasFollowupTag: !!tag,
+      followupTagText: tag === 'overdue' ? 'Overdue' : (tag === 'today' ? 'Due today' : (tag === 'upcoming' ? 'Upcoming' : '')),
+      followupTagColor: tag === 'overdue' ? 'var(--color-accent-2-700)' : (tag === 'today' ? 'var(--color-accent-700)' : 'var(--color-neutral-600)'),
+      stageLabel: st.label, stageBg: st.bg, stageColor: st.color,
+      onOpen: () => this.openLead(l.id),
+      onCall: (e) => { e.stopPropagation(); this.showToast('Calling ' + l.phone + '…'); }
+    };
+  }
+
+  filteredLeads() {
+    const { search, stageFilter, sourceFilter, cityFilter, ownerFilter, dateFrom, dateTo, followupFrom, followupTo, taskFrom, taskTo, rtOnly, leads } = this.state;
+    return leads.filter(l => {
+      if (ownerFilter.length && !ownerFilter.includes(l.owner)) return false;
+      if (stageFilter.length && !stageFilter.includes(String(l.stage))) return false;
+      if (sourceFilter.length && !sourceFilter.includes(l.source)) return false;
+      if (cityFilter.length && !cityFilter.includes(l.city)) return false;
+      if (rtOnly && !l.reTriggered) return false;
+      if (dateFrom && l.createdOn < new Date(dateFrom).getTime()) return false;
+      if (dateTo && l.createdOn > new Date(dateTo).getTime() + 86399000) return false;
+      if (followupFrom && (!l.followupAt || l.followupAt < new Date(followupFrom).getTime())) return false;
+      if (followupTo && (!l.followupAt || l.followupAt > new Date(followupTo).getTime() + 86399000)) return false;
+      if (taskFrom && (!l.taskDate || l.taskDate < new Date(taskFrom).getTime())) return false;
+      if (taskTo && (!l.taskDate || l.taskDate > new Date(taskTo).getTime() + 86399000)) return false;
+      if (search) {
+        const q = search.toLowerCase();
+        const hay = [l.name, l.phone, l.city, l.source].filter(Boolean).join(' ').toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    }).sort((a, b) => {
+      const at = a.taskDate == null ? Infinity : a.taskDate;
+      const bt = b.taskDate == null ? Infinity : b.taskDate;
+      if (at !== bt) return at - bt;
+      return b.createdOn - a.createdOn;
+    });
+  }
+
+  renderVals() {
+    const s = this.state;
+    const view = s.view;
+    const filtered = this.filteredLeads();
+    const totalPages = Math.max(1, Math.ceil(filtered.length / s.pageSize));
+    const page = Math.min(s.page, totalPages);
+    const startIdx = (page - 1) * s.pageSize;
+    const pagedRows = filtered.slice(startIdx, startIdx + s.pageSize).map(l => this.buildRowVM(l));
+    const pageButtons = (() => {
+      let start = Math.max(1, page - 1);
+      let end = Math.min(totalPages, start + 2);
+      start = Math.max(1, end - 2);
+      const arr = [];
+      for (let n = start; n <= end; n++) arr.push(n);
+      return arr.map(n => ({
+        num: n, bg: n === page ? 'var(--color-accent)' : 'var(--color-bg)', color: n === page ? 'var(--color-bg)' : 'var(--color-text)',
+        onClick: () => this.setState({ page: n })
+      }));
+    })();
+
+    const myLeads = s.leads.filter(l => l.owner === this.currentAgent);
+    const statAssignedToday = myLeads.filter(l => this.isSameDay(l.createdOn, this.NOW)).length;
+    const statNotAttempted = myLeads.filter(l => l.stage === 1).length;
+    const followupsToday = myLeads.filter(l => l.followupAt && ![7, 8].includes(l.stage) && (l.followupAt < this.NOW || this.isSameDay(l.followupAt, this.NOW)))
+      .sort((a, b) => a.followupAt - b.followupAt).slice(0, 8)
+      .map(l => {
+        const tag = this.followupStatus(l.followupAt, l.stage);
+        return {
+          nameDisplay: l.name || '[No Name]', city: l.city, stageLabel: this.getStage(l.stage).label,
+          followupDisplay: this.formatDateTime(l.followupAt),
+          followupTagText: tag === 'overdue' ? 'Overdue' : 'Due today',
+          followupTagColor: tag === 'overdue' ? 'var(--color-accent-2-700)' : 'var(--color-accent-700)',
+          onOpen: () => this.openLead(l.id)
+        };
+      });
+    const statFollowupsDue = followupsToday.length;
+    const statSales = myLeads.filter(l => [7, 8].includes(l.stage)).length;
+    const stageBreakdown = [1, 2, 3, 4, 5, 6, 7, 8].map(id => ({ label: this.getStage(id).label, dot: this.getStage(id).dot, count: myLeads.filter(l => l.stage === id).length }));
+
+    let detail = null;
+    if (view === 'detail' && s.selectedId) {
+      const l = s.leads.find(x => x.id === s.selectedId);
+      if (l) {
+        const st = this.getStage(l.stage);
+        detail = {
+          id: l.id, nameDisplay: l.name || '[No Name]', initials: this.initials(l.name), phone: l.phone, email: l.email || '—',
+          city: l.city, pin: l.pin, owner: l.owner, source: l.source, campaign: l.campaign, createdDisplay: this.formatDate(l.createdOn),
+          leadScore: l.leadScore, attempts: l.attempts, stage: l.stage, stageLabel: st.label, stageBg: st.bg, stageColor: st.color,
+          reTriggered: !!l.reTriggered,
+          followupDisplay: l.followupAt ? this.formatDateTime(l.followupAt) : '—',
+          hasTestRide: !!l.testRide, testRideStoreDisplay: l.testRide ? l.testRide.store : '', testRideDateDisplay: l.testRide ? this.formatDateTime(l.testRide.date) : '', testRideDealer: l.testRide ? l.testRide.dealer : '',
+          hasSale: !!l.sale, saleModel: l.sale ? l.sale.model : '', saleAmount: l.sale ? l.sale.amount : '', saleInvoice: l.sale ? l.sale.invoiceNo : '', saleFile: l.sale ? l.sale.fileName : '',
+          hasInvoice: !!(l.sale && l.sale.invoiceNo), missingInvoice: !!(l.sale && !l.sale.invoiceNo),
+          activity: l.activity.slice().sort((a, b) => b.ts - a.ts).map(a => ({
+            isCall: a.kind === 'call', isNote: a.kind !== 'call',
+            ts: this.formatDateTime(a.ts), text: a.text,
+            hasDuration: a.duration != null, durationDisplay: a.duration != null ? this.formatDuration(a.duration) : '',
+            connected: !!a.connected, showPlayer: a.kind === 'call' && !!a.connected, showNoRecording: a.kind === 'call' && !a.connected,
+            hasRemarks: !!a.remarks, remarks: a.remarks || '',
+            iconColor: a.kind === 'call' ? (a.connected ? 'var(--color-accent-700)' : 'var(--color-accent-2-700)') : 'var(--color-neutral-600)'
+          }))
+        };
+      }
+    }
+
+    return {
+      isDashboard: view === 'dashboard', isLeads: view === 'leads', isDetail: view === 'detail',
+      navDashboardColor: view === 'dashboard' ? 'var(--color-accent-700)' : 'var(--color-text)',
+      navLeadsColor: (view === 'leads' || view === 'detail') ? 'var(--color-accent-700)' : 'var(--color-text)',
+      navDashboardWeight: view === 'dashboard' ? '600' : '400',
+      navLeadsWeight: (view === 'leads' || view === 'detail') ? '600' : '400',
+      goDashboardClick: this.goDashboardClick, goLeadsClick: this.goLeadsClick, backToLeadsClick: this.backToLeadsClick,
+      toast: s.toast, toastVisible: !!s.toast,
+      todayDisplay: new Date(this.NOW).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
+      myLeadsCount: myLeads.length,
+      statAssignedToday, statNotAttempted, statFollowupsDue, statSales,
+      hasFollowupsToday: followupsToday.length > 0, noFollowupsToday: followupsToday.length === 0, followupsToday,
+      stageBreakdown,
+      filteredCount: filtered.length, pagedRows, pageButtons, pageSize: String(s.pageSize), setPageSizeHandler: this.setPageSizeHandler,
+      pageStartDisplay: filtered.length === 0 ? 0 : startIdx + 1, pageEndDisplay: Math.min(startIdx + s.pageSize, filtered.length),
+      prevPageClick: this.prevPageClick, nextPageClick: this.nextPageClick,
+      callDetailClick: this.callDetailClick,
+      search: s.search, setSearch: this.setSearch,
+      dateFrom: s.dateFrom, setDateFrom: this.setDateFrom, dateTo: s.dateTo, setDateTo: this.setDateTo,
+      followupFrom: s.followupFrom, setFollowupFrom: this.setFollowupFrom, followupTo: s.followupTo, setFollowupTo: this.setFollowupTo,
+      taskFrom: s.taskFrom, setTaskFrom: this.setTaskFrom, taskTo: s.taskTo, setTaskTo: this.setTaskTo,
+      createdRangeCaption: this.rangeCaption(s.dateFrom, s.dateTo),
+      followupRangeCaption: this.rangeCaption(s.followupFrom, s.followupTo),
+      taskRangeCaption: this.rangeCaption(s.taskFrom, s.taskTo),
+      rtOnly: s.rtOnly, rtCheckboxHandler: this.rtCheckboxHandler,
+      resetFiltersClick: this.resetFiltersClick,
+      stageFilterOpen: s.openFilter === 'stage', sourceFilterOpen: s.openFilter === 'source', cityFilterOpen: s.openFilter === 'city',
+      ownerFilterOpen: s.openFilter === 'owner', createdFilterOpen: s.openFilter === 'created', followupFilterOpen: s.openFilter === 'followup',
+      taskFilterOpen: s.openFilter === 'task',
+      toggleStageFilterClick: this.toggleStageFilterClick, toggleSourceFilterClick: this.toggleSourceFilterClick, toggleCityFilterClick: this.toggleCityFilterClick,
+      toggleOwnerFilterClick: this.toggleOwnerFilterClick, toggleCreatedFilterClick: this.toggleCreatedFilterClick, toggleFollowupFilterClick: this.toggleFollowupFilterClick,
+      toggleTaskFilterClick: this.toggleTaskFilterClick,
+      clearStageFilterClick: this.clearStageFilterClick, clearSourceFilterClick: this.clearSourceFilterClick, clearCityFilterClick: this.clearCityFilterClick,
+      clearOwnerFilterClick: this.clearOwnerFilterClick, clearCreatedFilterClick: this.clearCreatedFilterClick, clearFollowupFilterClick: this.clearFollowupFilterClick,
+      clearTaskFilterClick: this.clearTaskFilterClick,
+      stageFilterIndicator: s.stageFilter.length ? '●' : '', sourceFilterIndicator: s.sourceFilter.length ? '●' : '', cityFilterIndicator: s.cityFilter.length ? '●' : '',
+      ownerFilterIndicator: s.ownerFilter.length ? '●' : '', createdFilterIndicator: (s.dateFrom || s.dateTo) ? '●' : '', followupFilterIndicator: (s.followupFrom || s.followupTo) ? '●' : '',
+      taskFilterIndicator: (s.taskFrom || s.taskTo) ? '●' : '',
+      stageHasActive: s.stageFilter.length > 0, sourceHasActive: s.sourceFilter.length > 0, cityHasActive: s.cityFilter.length > 0,
+      ownerHasActive: s.ownerFilter.length > 0, createdHasActive: !!(s.dateFrom || s.dateTo), followupHasActive: !!(s.followupFrom || s.followupTo),
+      taskHasActive: !!(s.taskFrom || s.taskTo),
+      stageActiveLabel: s.stageFilter.map(id => this.getStage(parseInt(id, 10)).label).join(', '),
+      sourceActiveLabel: s.sourceFilter.join(', '), cityActiveLabel: s.cityFilter.join(', '), ownerActiveLabel: s.ownerFilter.join(', '),
+      stageHeaderBg: this.filterHeaderBg(s.stageFilter.length > 0), sourceHeaderBg: this.filterHeaderBg(s.sourceFilter.length > 0), cityHeaderBg: this.filterHeaderBg(s.cityFilter.length > 0),
+      ownerHeaderBg: this.filterHeaderBg(s.ownerFilter.length > 0), createdHeaderBg: this.filterHeaderBg(!!(s.dateFrom || s.dateTo)), followupHeaderBg: this.filterHeaderBg(!!(s.followupFrom || s.followupTo)),
+      taskHeaderBg: this.filterHeaderBg(!!(s.taskFrom || s.taskTo)), rtHeaderBg: this.filterHeaderBg(s.rtOnly),
+      stageOptions: this.STAGE_ORDER.map(id => ({ id, label: this.getStage(id).label, checked: s.stageFilter.includes(String(id)), onToggle: () => this.toggleArrayFilter('stageFilter', String(id)) })),
+      sourceOptions: this.SOURCE_LIST.map(src => ({ id: src, label: src, checked: s.sourceFilter.includes(src), onToggle: () => this.toggleArrayFilter('sourceFilter', src) })),
+      cityOptions: this.CITY_LIST.map(c => ({ id: c, label: c, checked: s.cityFilter.includes(c), onToggle: () => this.toggleArrayFilter('cityFilter', c) })),
+      ownerOptions: this.AGENT_LIST.map(a => ({ id: a, label: a, checked: s.ownerFilter.includes(a), onToggle: () => this.toggleArrayFilter('ownerFilter', a) })),
+      openQuickAddClick: this.openQuickAddClick, openAddLeadClick: this.openAddLeadClick,
+      quickAddOpen: s.quickAddOpen, quickName: s.quickName, quickPhone: s.quickPhone, quickCity: s.quickCity, quickPin: s.quickPin,
+      updateQuickNameHandler: this.updateQuickNameHandler, updateQuickPhoneHandler: this.updateQuickPhoneHandler, updateQuickCityHandler: this.updateQuickCityHandler, updateQuickPinHandler: this.updateQuickPinHandler,
+      closeQuickAddClick: this.closeQuickAddClick, submitQuickAddClick: this.submitQuickAddClick,
+      addOpen: s.addOpen, addName: s.addName, addPhone: s.addPhone, addEmail: s.addEmail, addCity: s.addCity, addPin: s.addPin, addSource: s.addSource, addCampaign: s.addCampaign,
+      updateAddNameHandler: this.updateAddNameHandler, updateAddPhoneHandler: this.updateAddPhoneHandler, updateAddEmailHandler: this.updateAddEmailHandler, updateAddCityHandler: this.updateAddCityHandler, updateAddPinHandler: this.updateAddPinHandler, updateAddSourceHandler: this.updateAddSourceHandler, updateAddCampaignHandler: this.updateAddCampaignHandler,
+      closeAddLeadClick: this.closeAddLeadClick, submitAddLeadClick: this.submitAddLeadClick,
+      detail,
+      followupDraft: s.followupDraft, updateFollowupDraftHandler: this.updateFollowupDraftHandler, saveFollowupClick: this.saveFollowupClick,
+      followupMax: (() => { const d = new Date(this.NOW + 15 * 86400000); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') + 'T' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); })(),
+      callFormClosed: !s.callForm.open, callFormOpenVal: s.callForm.open,
+      callOutcomeIsConnected: this.getDisposition(s.callForm.disposition).connected,
+      callDisposition: s.callForm.disposition, callDuration: s.callForm.duration, callRemarks: s.callForm.remarks,
+      openCallFormClick: this.openCallFormClick, cancelCallFormClick: this.cancelCallFormClick,
+      updateCallDispositionHandler: this.updateCallDispositionHandler,
+      updateCallDurationHandler: this.updateCallDurationHandler, updateCallRemarksHandler: this.updateCallRemarksHandler, saveCallOutcomeClick: this.saveCallOutcomeClick,
+      testRideButtonVisible: !s.testRideForm.open, testRideButtonLabel: detail && detail.hasTestRide ? 'Update Test Ride' : 'Book Test Ride',
+      testRideFormOpenVal: s.testRideForm.open, testRideDate: s.testRideForm.date, testRideStore: s.testRideForm.store, testRideDealer: s.testRideForm.dealer,
+      openTestRideFormClick: this.openTestRideFormClick, cancelTestRideFormClick: this.cancelTestRideFormClick,
+      updateTestRideDateHandler: this.updateTestRideDateHandler, updateTestRideStoreHandler: this.updateTestRideStoreHandler, updateTestRideDealerHandler: this.updateTestRideDealerHandler,
+      saveTestRideClick: this.saveTestRideClick,
+      saleButtonVisible: !s.saleForm.open, saleButtonLabel: detail && detail.hasSale ? 'Update Sale' : 'Mark as Sold',
+      saleFormOpenVal: s.saleForm.open, saleDocsIsYes: s.saleForm.docs === 'yes',
+      saleDocsNoBg: s.saleForm.docs === 'no' ? 'var(--color-accent-2-600)' : 'var(--color-bg)', saleDocsNoColor: s.saleForm.docs === 'no' ? 'var(--color-bg)' : 'var(--color-text)',
+      saleDocsYesBg: s.saleForm.docs === 'yes' ? 'var(--color-accent-600)' : 'var(--color-bg)', saleDocsYesColor: s.saleForm.docs === 'yes' ? 'var(--color-bg)' : 'var(--color-text)',
+      saleModel: s.saleForm.model, saleAmount: s.saleForm.amount, saleInvoiceNo: s.saleForm.invoiceNo,
+      saleFileLabel: s.saleForm.fileName || 'Choose file…',
+      openSaleFormClick: this.openSaleFormClick, cancelSaleFormClick: this.cancelSaleFormClick,
+      setSaleDocsNo: this.setSaleDocsNo, setSaleDocsYes: this.setSaleDocsYes,
+      updateSaleModelHandler: this.updateSaleModelHandler, updateSaleAmountHandler: this.updateSaleAmountHandler, updateSaleInvoiceNoHandler: this.updateSaleInvoiceNoHandler,
+      onInvoiceFileHandler: this.onInvoiceFileHandler, saveSaleClick: this.saveSaleClick,
+      manualStageChangeHandler: this.manualStageChangeHandler
+    };
+  }
+}
+
+</script>
+</body>
+</html>
