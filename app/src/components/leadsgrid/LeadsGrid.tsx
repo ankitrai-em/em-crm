@@ -219,7 +219,7 @@ export function LeadsGrid() {
                       style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: '50%', border: '1px solid var(--color-accent)', background: 'var(--color-accent-100)', color: 'var(--color-accent-700)', cursor: 'pointer', padding: 0 }}
                       onClick={(e) => {
                         e.stopPropagation();
-                        callLead(l.phone);
+                        callLead(l.id);
                       }}
                       title="Call"
                     >

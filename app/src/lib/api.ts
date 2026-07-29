@@ -1,0 +1,53 @@
+import type { ActivityEntry, Lead, Sale, TestRide } from '../types';
+
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787';
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${BASE_URL}${path}`, {
+    ...init,
+    headers: { 'Content-Type': 'application/json', ...init?.headers },
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Request to ${path} failed (${res.status})`);
+  }
+  return res.json();
+}
+
+export interface NewLeadInput {
+  name: string;
+  phone: string;
+  email?: string;
+  city?: string;
+  pin?: string;
+  source: string;
+  campaign?: string;
+  owner?: string;
+}
+
+export interface LeadPatch {
+  stage?: number;
+  followupAt?: number | null;
+  taskDate?: number | null;
+  reTriggered?: boolean;
+  attempts?: number;
+  testRide?: TestRide | null;
+  sale?: Sale | null;
+  activityNote?: string;
+  activityEntry?: ActivityEntry;
+}
+
+export interface CallResult {
+  provider: string;
+  status: string;
+  sid: string;
+  message: string;
+  lead: Lead;
+}
+
+export const api = {
+  listLeads: () => request<Lead[]>('/api/leads'),
+  createLead: (input: NewLeadInput) => request<Lead>('/api/leads', { method: 'POST', body: JSON.stringify(input) }),
+  patchLead: (id: string, patch: LeadPatch) => request<Lead>(`/api/leads/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  callLead: (id: string) => request<CallResult>(`/api/leads/${id}/call`, { method: 'POST' }),
+};

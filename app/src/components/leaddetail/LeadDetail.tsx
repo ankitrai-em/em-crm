@@ -48,7 +48,7 @@ export function LeadDetail() {
                 {lead.phone}
                 <button
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 10px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-accent)', background: 'var(--color-accent-100)', color: 'var(--color-accent-700)', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
-                  onClick={() => callLead(lead.phone)}
+                  onClick={() => callLead(lead.id)}
                 >
                   <PhoneIcon size={11} />
                   Call

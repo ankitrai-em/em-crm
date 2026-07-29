@@ -2,10 +2,7 @@ import type { Disposition, StageId, StageInfo } from '../types';
 
 export const CURRENT_AGENT = 'Aditya Narayan';
 
-// Fixed "now" so the prototype's relative dates (overdue/today/upcoming,
-// task-date defaults) render consistently rather than drifting with the
-// real clock.
-export const NOW = new Date(2026, 6, 29, 15, 30, 0).getTime();
+export const NOW = Date.now();
 
 export const STAGES: Record<StageId, StageInfo> = {
   1: { label: 'Not Attempted', bg: 'var(--color-neutral-200)', color: 'var(--color-neutral-800)', dot: 'var(--color-neutral-500)' },

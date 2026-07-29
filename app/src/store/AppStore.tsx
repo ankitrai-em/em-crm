@@ -1,16 +1,24 @@
-import { createContext, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { ActivityEntry, FilterKey, Lead, StageId } from '../types';
 import { AGENT_LIST, CITY_LIST, CURRENT_AGENT, NOW, SOURCE_LIST, STAGE_ORDER, getDisposition, getStage } from '../data/constants';
-import { generateLeads } from '../data/generateLeads';
 import { formatDateTime, parseDuration } from '../data/format';
+import { api } from '../lib/api';
 import type { AppState } from './types';
 import { emptyCallForm, emptySaleForm, emptyTestRideForm, initialState } from './types';
 
 type Patch = Partial<AppState> | ((s: AppState) => Partial<AppState>);
 
 function useProviderValue() {
-  const [state, setStateRaw] = useState<AppState>(() => initialState(generateLeads()));
+  const [state, setStateRaw] = useState<AppState>(() => initialState([]));
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    api
+      .listLeads()
+      .then((leads) => setStateRaw((s) => ({ ...s, leads })))
+      .catch((err) => showToast('Could not reach API: ' + err.message));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const setState = (patch: Patch) => {
     setStateRaw((s) => ({ ...s, ...(typeof patch === 'function' ? patch(s) : patch) }));
@@ -22,9 +30,14 @@ function useProviderValue() {
     toastTimer.current = setTimeout(() => setState({ toast: '' }), 2400);
   };
 
-  const updateLead = (id: string, patch: Partial<Lead>, activity: string | ActivityEntry) => {
-    const entry: ActivityEntry = typeof activity === 'string' ? { ts: Date.now(), kind: 'note', text: activity } : activity;
-    setState((s) => ({ leads: s.leads.map((l) => (l.id === id ? { ...l, ...patch, activity: [entry, ...l.activity] } : l)) }));
+  const updateLead = async (id: string, patch: Partial<Lead>, activity: string | ActivityEntry) => {
+    const activityField = typeof activity === 'string' ? { activityNote: activity } : { activityEntry: activity };
+    try {
+      const updated = await api.patchLead(id, { ...patch, ...activityField });
+      setState((s) => ({ leads: s.leads.map((l) => (l.id === id ? updated : l)) }));
+    } catch (err) {
+      showToast('Update failed: ' + (err as Error).message);
+    }
   };
 
   // ---- navigation ----
@@ -70,27 +83,39 @@ function useProviderValue() {
   const setPage = (n: number) => setState({ page: n });
   const setPageSize = (n: number) => setState({ pageSize: n, page: 1 });
 
-  const callLead = (phone: string) => showToast('Calling ' + phone + '…');
+  const callLead = async (id: string) => {
+    const lead = state.leads.find((l) => l.id === id);
+    if (!lead) return;
+    showToast('Calling ' + lead.phone + '…');
+    try {
+      const result = await api.callLead(id);
+      setState((s) => ({ leads: s.leads.map((l) => (l.id === id ? result.lead : l)) }));
+      showToast(result.message);
+    } catch (err) {
+      showToast('Call failed: ' + (err as Error).message);
+    }
+  };
 
   // ---- quick add ----
   const openQuickAdd = () => setState({ quickAddOpen: true });
   const closeQuickAdd = () => setState({ quickAddOpen: false });
   const updateQuickField = (field: 'quickName' | 'quickPhone' | 'quickCity' | 'quickPin', value: string) => setState({ [field]: value } as Partial<AppState>);
-  const submitQuickAdd = () => {
+  const submitQuickAdd = async () => {
     const { quickName, quickPhone, quickCity, quickPin } = state;
     if (!quickName || !quickPhone) {
       showToast('Name and phone are required');
       return;
     }
-    const id = 'L' + Math.floor(2000 + Math.random() * 9000);
-    const lead: Lead = {
-      id, name: quickName, phone: quickPhone, email: '', city: quickCity || '—', pin: quickPin || '—',
-      source: 'Quick Add', campaign: '—', createdOn: Date.now(), owner: CURRENT_AGENT, stage: 1, leadScore: 0,
-      followupAt: null, taskDate: Date.now() + 86400000, reTriggered: false, attempts: 0,
-      activity: [{ ts: Date.now(), kind: 'note', text: 'Lead captured via Quick Add' }], testRide: null, sale: null,
-    };
-    setState((s) => ({ leads: [lead, ...s.leads], quickAddOpen: false, quickName: '', quickPhone: '', quickCity: '', quickPin: '' }));
-    showToast('Lead added');
+    try {
+      const lead = await api.createLead({
+        name: quickName, phone: quickPhone, city: quickCity, pin: quickPin,
+        source: 'Quick Add', owner: CURRENT_AGENT,
+      });
+      setState((s) => ({ leads: [lead, ...s.leads], quickAddOpen: false, quickName: '', quickPhone: '', quickCity: '', quickPin: '' }));
+      showToast('Lead added');
+    } catch (err) {
+      showToast('Could not add lead: ' + (err as Error).message);
+    }
   };
 
   // ---- add lead ----
@@ -98,19 +123,22 @@ function useProviderValue() {
   const closeAddLead = () => setState({ addOpen: false });
   const updateAddField = (field: 'addName' | 'addPhone' | 'addEmail' | 'addCity' | 'addPin' | 'addSource' | 'addCampaign', value: string) =>
     setState({ [field]: value } as Partial<AppState>);
-  const submitAddLead = () => {
+  const submitAddLead = async () => {
     const { addName, addPhone, addEmail, addCity, addPin, addSource, addCampaign } = state;
     if (!addName || !addPhone) {
       showToast('Name and phone are required');
       return;
     }
-    const id = 'L' + Math.floor(2000 + Math.random() * 9000);
-    const lead: Lead = {
-      id, name: addName, phone: addPhone, email: addEmail || '', city: addCity || '—', pin: addPin || '—',
-      source: addSource, campaign: addCampaign || '—', createdOn: Date.now(), owner: CURRENT_AGENT, stage: 1, leadScore: 0,
-      followupAt: null, taskDate: Date.now() + 86400000, reTriggered: false, attempts: 0,
-      activity: [{ ts: Date.now(), kind: 'note', text: 'Lead captured via ' + addSource }], testRide: null, sale: null,
-    };
+    let lead: Lead;
+    try {
+      lead = await api.createLead({
+        name: addName, phone: addPhone, email: addEmail, city: addCity, pin: addPin,
+        source: addSource, campaign: addCampaign, owner: CURRENT_AGENT,
+      });
+    } catch (err) {
+      showToast('Could not add lead: ' + (err as Error).message);
+      return;
+    }
     setState((s) => ({ leads: [lead, ...s.leads], addOpen: false, addName: '', addPhone: '', addEmail: '', addCity: '', addPin: '', addSource: 'Website', addCampaign: '' }));
     showToast('Lead added');
   };

@@ -1,3 +1,21 @@
+# Lead Management App
+
+Full-stack implementation of the design handoff below: a React frontend (`app/`) backed by an Express + SQLite API (`server/`) that ingests leads from external sources, persists all activity, and places click-to-call requests through a pluggable telephony provider.
+
+## Run it
+
+```bash
+# terminal 1 — backend
+cd server && npm install && cp .env.example .env && npm run dev
+
+# terminal 2 — frontend
+cd app && npm install && cp .env.example .env && npm run dev
+```
+
+Open http://localhost:5173. See `server/README.md` for the lead-intake webhook shape and wiring up a real telephony provider (Twilio/Exotel — mock calling works out of the box).
+
+---
+
 # CODING AGENTS: READ THIS FIRST
 
 This is a **handoff bundle** from Claude Design (claude.ai/design).
