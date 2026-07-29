@@ -1,12 +1,14 @@
 import { useApp } from '../store/AppStore';
 
 export function Nav() {
-  const { state, goDashboard, goLeads } = useApp();
+  const { state, goDashboard, goLeads, goUsers } = useApp();
   const view = state.view;
   const dashboardColor = view === 'dashboard' ? 'var(--color-accent-700)' : 'var(--color-text)';
   const leadsColor = view === 'leads' || view === 'detail' ? 'var(--color-accent-700)' : 'var(--color-text)';
+  const usersColor = view === 'users' ? 'var(--color-accent-700)' : 'var(--color-text)';
   const dashboardWeight = view === 'dashboard' ? 600 : 400;
   const leadsWeight = view === 'leads' || view === 'detail' ? 600 : 400;
+  const usersWeight = view === 'users' ? 600 : 400;
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 36, padding: '20px 48px' }}>
@@ -22,6 +24,9 @@ export function Nav() {
         </a>
         <a href="#" style={{ fontSize: 14, color: leadsColor, fontWeight: leadsWeight }} onClick={(e) => { e.preventDefault(); goLeads(); }}>
           Leads
+        </a>
+        <a href="#" style={{ fontSize: 14, color: usersColor, fontWeight: usersWeight }} onClick={(e) => { e.preventDefault(); goUsers(); }}>
+          Users
         </a>
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>

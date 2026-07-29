@@ -9,6 +9,32 @@ export const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 
 db.exec(`
+  CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT,
+    phone TEXT,
+    role TEXT NOT NULL DEFAULT 'Agent',
+    createdOn INTEGER NOT NULL
+  );
+`);
+
+const DEFAULT_AGENTS = ['Aditya Narayan', 'Shreya Raj', 'Preeti Vankhede', 'Deep Malakar', 'Dip Roy', 'Shweta Madel', 'Yash Pawar'];
+if (db.prepare('SELECT COUNT(*) as n FROM users').get().n === 0) {
+  const insert = db.prepare('INSERT INTO users (id, name, email, phone, role, createdOn) VALUES (@id, @name, @email, @phone, @role, @createdOn)');
+  DEFAULT_AGENTS.forEach((name, i) => {
+    insert.run({
+      id: 'U' + String(i + 1).padStart(4, '0'),
+      name,
+      email: '',
+      phone: '',
+      role: name === 'Aditya Narayan' ? 'Admin' : 'Agent',
+      createdOn: Date.now(),
+    });
+  });
+}
+
+db.exec(`
   CREATE TABLE IF NOT EXISTS leads (
     id TEXT PRIMARY KEY,
     name TEXT,
@@ -31,6 +57,49 @@ db.exec(`
     sale TEXT
   );
 `);
+
+export function listUsers() {
+  return db.prepare('SELECT * FROM users ORDER BY createdOn ASC').all();
+}
+
+export function getUser(id) {
+  return db.prepare('SELECT * FROM users WHERE id = ?').get(id) || null;
+}
+
+export function getUserByName(name) {
+  if (!name) return null;
+  return db.prepare('SELECT * FROM users WHERE name = ?').get(name) || null;
+}
+
+export function insertUser(user) {
+  db.prepare(`
+    INSERT INTO users (id, name, email, phone, role, createdOn)
+    VALUES (@id, @name, @email, @phone, @role, @createdOn)
+  `).run(user);
+  return getUser(user.id);
+}
+
+const USER_PATCHABLE = ['name', 'email', 'phone', 'role'];
+
+export function patchUser(id, patch) {
+  const existing = getUser(id);
+  if (!existing) return null;
+  const merged = { ...existing, ...patch };
+  const sets = [];
+  const params = { id };
+  for (const key of USER_PATCHABLE) {
+    if (key in merged) {
+      sets.push(`${key} = @${key}`);
+      params[key] = merged[key] ?? null;
+    }
+  }
+  if (sets.length) db.prepare(`UPDATE users SET ${sets.join(', ')} WHERE id = @id`).run(params);
+  return getUser(id);
+}
+
+export function deleteUser(id) {
+  db.prepare('DELETE FROM users WHERE id = ?').run(id);
+}
 
 function rowToLead(row) {
   if (!row) return null;

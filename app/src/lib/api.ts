@@ -1,4 +1,4 @@
-import type { ActivityEntry, Lead, Sale, TestRide } from '../types';
+import type { ActivityEntry, Lead, Role, Sale, TestRide, User } from '../types';
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787';
 
@@ -45,9 +45,28 @@ export interface CallResult {
   lead: Lead;
 }
 
+export interface NewUserInput {
+  name: string;
+  email?: string;
+  phone?: string;
+  role: Role;
+}
+
+export interface UserPatch {
+  name?: string;
+  email?: string;
+  phone?: string;
+  role?: Role;
+}
+
 export const api = {
   listLeads: () => request<Lead[]>('/api/leads'),
   createLead: (input: NewLeadInput) => request<Lead>('/api/leads', { method: 'POST', body: JSON.stringify(input) }),
   patchLead: (id: string, patch: LeadPatch) => request<Lead>(`/api/leads/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   callLead: (id: string) => request<CallResult>(`/api/leads/${id}/call`, { method: 'POST' }),
+
+  listUsers: () => request<User[]>('/api/users'),
+  createUser: (input: NewUserInput) => request<User>('/api/users', { method: 'POST', body: JSON.stringify(input) }),
+  patchUser: (id: string, patch: UserPatch) => request<User>(`/api/users/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  deleteUser: (id: string) => request<{ ok: true }>(`/api/users/${id}`, { method: 'DELETE' }),
 };

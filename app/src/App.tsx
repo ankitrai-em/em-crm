@@ -6,11 +6,14 @@ import { LeadsGrid } from './components/leadsgrid/LeadsGrid';
 import { LeadDetail } from './components/leaddetail/LeadDetail';
 import { QuickAddModal } from './components/modals/QuickAddModal';
 import { AddLeadModal } from './components/modals/AddLeadModal';
+import { UsersPage } from './components/UsersPage';
+import { UserModal } from './components/modals/UserModal';
 
 function Screen() {
   const { state } = useApp();
   if (state.view === 'dashboard') return <Dashboard />;
   if (state.view === 'leads') return <LeadsGrid />;
+  if (state.view === 'users') return <UsersPage />;
   return <LeadDetail />;
 }
 
@@ -22,6 +25,7 @@ function AppShell() {
       <Screen />
       <QuickAddModal />
       <AddLeadModal />
+      <UserModal />
     </div>
   );
 }

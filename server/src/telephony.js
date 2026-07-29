@@ -1,12 +1,46 @@
 // Pluggable click-to-call providers. Set TELEPHONY_PROVIDER in .env to switch.
 // Every provider exposes the same shape: placeCall({ toNumber, leadId }) -> { provider, status, sid, message }
 
-async function mockProvider({ toNumber }) {
+async function mockProvider({ toNumber, agentNumber }) {
   return {
     provider: 'mock',
     status: 'initiated',
     sid: 'mock_' + Date.now(),
-    message: `Simulated call to ${toNumber}. Set TELEPHONY_PROVIDER=twilio or exotel in server/.env with real credentials to place live calls.`,
+    message: `Simulated call: agent ${agentNumber || '(none)'} → customer ${toNumber}. Set TELEPHONY_PROVIDER=sarv/twilio/exotel in server/.env with real credentials to place live calls.`,
+  };
+}
+
+// Sarv / DeepCall click-to-call: connects the agent's phone to the customer's phone.
+async function sarvProvider({ toNumber, agentNumber }) {
+  const { SARV_USER_ID, SARV_TOKEN } = process.env;
+  if (!SARV_USER_ID || !SARV_TOKEN) {
+    throw new Error('Missing SARV_USER_ID / SARV_TOKEN in server/.env');
+  }
+  if (!agentNumber) {
+    throw new Error("This lead's owner has no phone number on file. Add one in User Management before calling.");
+  }
+  const url = new URL('https://v4-api.deepcall.com/api/v3/clickToCall/para');
+  url.searchParams.set('user_id', SARV_USER_ID);
+  url.searchParams.set('token', SARV_TOKEN);
+  url.searchParams.set('callFirst', 'agent');
+  url.searchParams.set('customer', toNumber);
+  url.searchParams.set('agentType', 'agent_number');
+  url.searchParams.set('agent_number', agentNumber);
+
+  const res = await fetch(url, { method: 'POST', headers: { 'cache-control': 'no-cache' } });
+  const text = await res.text();
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    data = { raw: text };
+  }
+  if (!res.ok) throw new Error(data.message || data.msg || `Sarv call failed (${res.status})`);
+  return {
+    provider: 'sarv',
+    status: data.status || data.Status || 'initiated',
+    sid: data.call_id || data.callid || data.id || 'sarv_' + Date.now(),
+    message: data.message || data.msg || `Call connecting agent ${agentNumber} to ${toNumber} via Sarv`,
   };
 }
 
@@ -48,11 +82,11 @@ async function exotelProvider({ toNumber }) {
   return { provider: 'exotel', status: call.Status || 'initiated', sid: call.Sid, message: `Call ${call.Status || 'initiated'} via Exotel` };
 }
 
-const PROVIDERS = { mock: mockProvider, twilio: twilioProvider, exotel: exotelProvider };
+const PROVIDERS = { mock: mockProvider, twilio: twilioProvider, exotel: exotelProvider, sarv: sarvProvider };
 
-export async function placeCall({ toNumber, leadId }) {
+export async function placeCall({ toNumber, agentNumber, leadId }) {
   const key = process.env.TELEPHONY_PROVIDER || 'mock';
   const provider = PROVIDERS[key];
   if (!provider) throw new Error(`Unknown TELEPHONY_PROVIDER "${key}". Use one of: ${Object.keys(PROVIDERS).join(', ')}`);
-  return provider({ toNumber, leadId });
+  return provider({ toNumber, agentNumber, leadId });
 }

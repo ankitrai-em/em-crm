@@ -21,6 +21,10 @@ npm run dev        # http://localhost:8787
 | POST   | `/api/leads/webhook`    | **Generic intake endpoint** — point external lead sources here        |
 | PATCH  | `/api/leads/:id`        | Update stage, follow-up, test ride, sale, etc; optionally append an activity note |
 | POST   | `/api/leads/:id/call`   | Click-to-call — dials out through the configured telephony provider   |
+| GET    | `/api/users`            | List users                                                             |
+| POST   | `/api/users`            | Create a user (Name, Email, Phone, Role)                               |
+| PATCH  | `/api/users/:id`        | Update a user                                                          |
+| DELETE | `/api/users/:id`        | Remove a user                                                          |
 
 ### Feeding in real leads
 
@@ -40,7 +44,10 @@ Field names are matched on a best-effort basis (`name`/`full_name`/`fullName`, `
 `TELEPHONY_PROVIDER` in `.env` controls which provider handles `POST /api/leads/:id/call`:
 
 - `mock` (default) — no credentials needed, simulates the call instantly so the rest of the app is fully testable today.
+- `sarv` — set `SARV_USER_ID`, `SARV_TOKEN`. Hits Sarv/DeepCall's `clickToCall` API.
 - `twilio` — set `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`, `TWILIO_TWIML_URL`.
 - `exotel` — set `EXOTEL_SID`, `EXOTEL_API_KEY`, `EXOTEL_API_TOKEN`, `EXOTEL_CALLER_ID`, `EXOTEL_AGENT_NUMBER`.
 
-See `src/telephony.js` to add another provider — it's a single `placeCall({ toNumber, leadId })` function per provider.
+See `src/telephony.js` to add another provider — it's a single `placeCall({ toNumber, agentNumber, leadId })` function per provider.
+
+**The agent number is never hardcoded.** When you click Call on a lead, the server looks up that lead's `owner`, finds the matching user in User Management, and uses that user's phone as the agent leg. The customer leg is always the lead's own phone. If the owner has no phone on file (or the lead is Unassigned), the call is rejected with a message telling you to fix it in User Management — nothing silently calls the wrong number.

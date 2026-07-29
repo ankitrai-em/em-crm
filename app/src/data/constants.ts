@@ -1,4 +1,4 @@
-import type { Disposition, StageId, StageInfo } from '../types';
+import type { Disposition, Role, StageId, StageInfo } from '../types';
 
 export const CURRENT_AGENT = 'Aditya Narayan';
 
@@ -30,7 +30,14 @@ export const DISPOSITIONS: Disposition[] = [
 
 export const SOURCE_LIST = ['Website', 'Facebook Ads', 'Instagram Ads', 'WhatsApp', 'Test Ride Page', 'Inbound Call', 'Referral', 'ExitIntentLeads'];
 export const CITY_LIST = ['Chennai', 'Bengaluru', 'Ludhiana', 'Noida', 'Ernakulam', 'Mumbai', 'Pune', 'Hyderabad', 'Jaipur', 'Delhi', 'Ahmedabad', 'Nagpur'];
-export const AGENT_LIST = ['Aditya Narayan', 'Shreya Raj', 'Preeti Vankhede', 'Deep Malakar', 'Dip Roy', 'Shweta Madel', 'Yash Pawar'];
+
+export const ROLE_LIST: Role[] = ['Admin', 'Manager', 'Agent'];
+
+export const ROLE_PERMISSIONS: Record<Role, string[]> = {
+  Admin: ['Manage users', 'Manage all leads', 'Reassign leads', 'View reports'],
+  Manager: ['Manage all leads', 'Reassign leads', 'View reports'],
+  Agent: ['Manage own leads'],
+};
 
 export function getStage(id: number): StageInfo {
   return STAGES[id as StageId] || STAGES[1];

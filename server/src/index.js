@@ -2,7 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import { nanoid } from 'nanoid';
-import { listLeads, getLead, insertLead, patchLead } from './db.js';
+import { listLeads, getLead, insertLead, patchLead, listUsers, getUser, getUserByName, insertUser, patchUser, deleteUser } from './db.js';
 import { placeCall } from './telephony.js';
 
 const app = express();
@@ -80,21 +80,66 @@ app.patch('/api/leads/:id', (req, res) => {
 });
 
 // Click-to-call: dials out through the configured telephony provider (mock by default,
-// see server/src/telephony.js and .env.example for wiring up Twilio/Exotel).
+// see server/src/telephony.js and .env.example for wiring up Sarv/Twilio/Exotel).
+// The agent leg is resolved dynamically from the lead's owner -> that user's phone number
+// in User Management, so the same lead always rings the right agent's phone.
 app.post('/api/leads/:id/call', async (req, res) => {
   const lead = getLead(req.params.id);
   if (!lead) return res.status(404).json({ error: 'not found' });
+
+  const owner = getUserByName(lead.owner);
+  const agentNumber = owner?.phone || null;
+  if (!agentNumber) {
+    return res.status(400).json({
+      error: lead.owner && lead.owner !== 'Unassigned'
+        ? `${lead.owner} has no phone number on file. Add one in User Management before calling.`
+        : 'This lead has no owner assigned. Assign an owner with a phone number in User Management before calling.',
+    });
+  }
+
   try {
-    const result = await placeCall({ toNumber: lead.phone, leadId: lead.id });
+    const result = await placeCall({ toNumber: lead.phone, agentNumber, leadId: lead.id });
     const updated = patchLead(lead.id, {}, {
       ts: Date.now(),
       kind: 'call',
-      text: `Click-to-call initiated to ${lead.phone} via ${result.provider} (${result.status}).`,
+      text: `Click-to-call: connecting ${lead.owner} (${agentNumber}) to ${lead.phone} via ${result.provider} (${result.status}).`,
     });
     res.json({ ...result, lead: updated });
   } catch (err) {
     res.status(502).json({ error: err.message });
   }
+});
+
+// ---- users ----
+
+app.get('/api/users', (_req, res) => {
+  res.json(listUsers());
+});
+
+app.post('/api/users', (req, res) => {
+  const { name, email, phone, role } = req.body || {};
+  if (!name) return res.status(400).json({ error: 'name is required' });
+  const user = insertUser({
+    id: 'U' + nanoid(6).toUpperCase(),
+    name,
+    email: email || '',
+    phone: phone || '',
+    role: role || 'Agent',
+    createdOn: Date.now(),
+  });
+  res.status(201).json(user);
+});
+
+app.patch('/api/users/:id', (req, res) => {
+  const updated = patchUser(req.params.id, req.body || {});
+  if (!updated) return res.status(404).json({ error: 'not found' });
+  res.json(updated);
+});
+
+app.delete('/api/users/:id', (req, res) => {
+  if (!getUser(req.params.id)) return res.status(404).json({ error: 'not found' });
+  deleteUser(req.params.id);
+  res.json({ ok: true });
 });
 
 app.listen(PORT, () => {

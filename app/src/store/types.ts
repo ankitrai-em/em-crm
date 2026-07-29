@@ -1,4 +1,4 @@
-import type { CallForm, FilterKey, Lead, SaleForm, TestRideForm, View } from '../types';
+import type { CallForm, FilterKey, Lead, SaleForm, TestRideForm, User, UserForm, View } from '../types';
 import { CURRENT_AGENT, NOW } from '../data/constants';
 import { toDateInputValue } from '../data/format';
 
@@ -39,11 +39,14 @@ export interface AppState {
   followupDraft: string;
   toast: string;
   leads: Lead[];
+  users: User[];
+  userForm: UserForm;
 }
 
 export const emptyCallForm: CallForm = { open: false, disposition: 'not_reachable', duration: '', remarks: '' };
 export const emptyTestRideForm: TestRideForm = { open: false, date: '', store: '', dealer: '' };
 export const emptySaleForm: SaleForm = { open: false, docs: 'no', invoiceNo: '', amount: '', model: '', fileName: '' };
+export const emptyUserForm: UserForm = { open: false, editingId: null, name: '', email: '', phone: '', role: 'Agent' };
 
 export function initialState(leads: Lead[]): AppState {
   return {
@@ -83,5 +86,7 @@ export function initialState(leads: Lead[]): AppState {
     followupDraft: '',
     toast: '',
     leads,
+    users: [],
+    userForm: emptyUserForm,
   };
 }

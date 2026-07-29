@@ -1,10 +1,10 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { ActivityEntry, FilterKey, Lead, StageId } from '../types';
-import { AGENT_LIST, CITY_LIST, CURRENT_AGENT, NOW, SOURCE_LIST, STAGE_ORDER, getDisposition, getStage } from '../data/constants';
+import type { ActivityEntry, FilterKey, Lead, Role, StageId, User } from '../types';
+import { CITY_LIST, CURRENT_AGENT, NOW, ROLE_LIST, ROLE_PERMISSIONS, SOURCE_LIST, STAGE_ORDER, getDisposition, getStage } from '../data/constants';
 import { formatDateTime, parseDuration } from '../data/format';
 import { api } from '../lib/api';
 import type { AppState } from './types';
-import { emptyCallForm, emptySaleForm, emptyTestRideForm, initialState } from './types';
+import { emptyCallForm, emptySaleForm, emptyTestRideForm, emptyUserForm, initialState } from './types';
 
 type Patch = Partial<AppState> | ((s: AppState) => Partial<AppState>);
 
@@ -17,6 +17,10 @@ function useProviderValue() {
       .listLeads()
       .then((leads) => setStateRaw((s) => ({ ...s, leads })))
       .catch((err) => showToast('Could not reach API: ' + err.message));
+    api
+      .listUsers()
+      .then((users) => setStateRaw((s) => ({ ...s, users })))
+      .catch((err) => showToast('Could not load users: ' + err.message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -43,6 +47,7 @@ function useProviderValue() {
   // ---- navigation ----
   const goDashboard = () => setState({ view: 'dashboard' });
   const goLeads = () => setState({ view: 'leads' });
+  const goUsers = () => setState({ view: 'users' });
   const backToLeads = () => setState({ view: 'leads' });
   const openLead = (id: string) =>
     setState({
@@ -259,12 +264,62 @@ function useProviderValue() {
 
   const myLeads = useMemo(() => state.leads.filter((l) => l.owner === CURRENT_AGENT), [state.leads]);
 
+  const AGENT_LIST = useMemo(() => state.users.map((u) => u.name), [state.users]);
+
+  // ---- user management ----
+  const openAddUser = () => setState({ userForm: { ...emptyUserForm, open: true } });
+  const openEditUser = (id: string) => {
+    const user = state.users.find((u) => u.id === id);
+    if (!user) return;
+    setState({ userForm: { open: true, editingId: id, name: user.name, email: user.email, phone: user.phone, role: user.role } });
+  };
+  const closeUserForm = () => setState({ userForm: emptyUserForm });
+  const updateUserForm = (patch: Partial<User> & { role?: Role }) => setState((s) => ({ userForm: { ...s.userForm, ...patch } }));
+  const submitUserForm = async () => {
+    const { editingId, name, email, phone, role } = state.userForm;
+    if (!name) {
+      showToast('Name is required');
+      return;
+    }
+    try {
+      if (editingId) {
+        const updated = await api.patchUser(editingId, { name, email, phone, role });
+        setState((s) => ({ users: s.users.map((u) => (u.id === editingId ? updated : u)), userForm: emptyUserForm }));
+        showToast('User updated');
+      } else {
+        const created = await api.createUser({ name, email, phone, role });
+        setState((s) => ({ users: [...s.users, created], userForm: emptyUserForm }));
+        showToast('User added');
+      }
+    } catch (err) {
+      showToast('Could not save user: ' + (err as Error).message);
+    }
+  };
+  const setUserRole = async (id: string, role: Role) => {
+    try {
+      const updated = await api.patchUser(id, { role });
+      setState((s) => ({ users: s.users.map((u) => (u.id === id ? updated : u)) }));
+    } catch (err) {
+      showToast('Could not update role: ' + (err as Error).message);
+    }
+  };
+  const removeUser = async (id: string) => {
+    try {
+      await api.deleteUser(id);
+      setState((s) => ({ users: s.users.filter((u) => u.id !== id) }));
+      showToast('User removed');
+    } catch (err) {
+      showToast('Could not remove user: ' + (err as Error).message);
+    }
+  };
+
   return {
     state,
     setState,
     showToast,
     goDashboard,
     goLeads,
+    goUsers,
     backToLeads,
     openLead,
     setSearch,
@@ -307,11 +362,20 @@ function useProviderValue() {
     manualStageChange,
     filteredLeads,
     myLeads,
+    openAddUser,
+    openEditUser,
+    closeUserForm,
+    updateUserForm,
+    submitUserForm,
+    setUserRole,
+    removeUser,
     // static reference lists
     STAGE_ORDER,
     SOURCE_LIST,
     CITY_LIST,
     AGENT_LIST,
+    ROLE_LIST,
+    ROLE_PERMISSIONS,
   };
 }
 
