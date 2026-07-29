@@ -59,6 +59,12 @@ export interface UserPatch {
   role?: Role;
 }
 
+export interface UploadResult {
+  fileName: string;
+  originalName: string;
+  url: string;
+}
+
 export const api = {
   listLeads: () => request<Lead[]>('/api/leads'),
   createLead: (input: NewLeadInput) => request<Lead>('/api/leads', { method: 'POST', body: JSON.stringify(input) }),
@@ -69,4 +75,17 @@ export const api = {
   createUser: (input: NewUserInput) => request<User>('/api/users', { method: 'POST', body: JSON.stringify(input) }),
   patchUser: (id: string, patch: UserPatch) => request<User>(`/api/users/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   deleteUser: (id: string) => request<{ ok: true }>(`/api/users/${id}`, { method: 'DELETE' }),
+
+  uploadInvoice: async (file: File): Promise<UploadResult> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${BASE_URL}/api/uploads`, { method: 'POST', body: formData });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || `Upload failed (${res.status})`);
+    }
+    return res.json();
+  },
 };
+
+export const apiBaseUrl = BASE_URL;

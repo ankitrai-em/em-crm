@@ -208,18 +208,26 @@ function useProviderValue() {
   };
 
   // ---- sale ----
-  const openSaleForm = () => setState({ saleForm: { open: true, docs: 'no', invoiceNo: '', amount: '', model: '', fileName: '' } });
+  const openSaleForm = () => setState({ saleForm: { ...emptySaleForm, open: true } });
   const cancelSaleForm = () => setState({ saleForm: emptySaleForm });
   const setSaleDocs = (docs: 'yes' | 'no') => setState((s) => ({ saleForm: { ...s.saleForm, docs } }));
   const updateSaleForm = (patch: Partial<AppState['saleForm']>) => setState((s) => ({ saleForm: { ...s.saleForm, ...patch } }));
-  const onInvoiceFile = (file: File | undefined) => {
-    if (file) setState((s) => ({ saleForm: { ...s.saleForm, fileName: file.name } }));
+  const onInvoiceFile = async (file: File | undefined) => {
+    if (!file) return;
+    setState((s) => ({ saleForm: { ...s.saleForm, uploading: true } }));
+    try {
+      const result = await api.uploadInvoice(file);
+      setState((s) => ({ saleForm: { ...s.saleForm, fileName: result.originalName, fileUrl: result.url, uploading: false } }));
+    } catch (err) {
+      setState((s) => ({ saleForm: { ...s.saleForm, uploading: false } }));
+      showToast('Upload failed: ' + (err as Error).message);
+    }
   };
   const saveSale = () => {
-    const { docs, invoiceNo, amount, model, fileName } = state.saleForm;
+    const { docs, invoiceNo, amount, model, fileName, fileUrl } = state.saleForm;
     const stage: StageId = docs === 'yes' ? 8 : 7;
     if (!state.selectedId) return;
-    const patch = { stage, sale: { invoiceNo: docs === 'yes' ? invoiceNo : '', amount, model, fileName: docs === 'yes' ? fileName : '' } };
+    const patch = { stage, sale: { invoiceNo: docs === 'yes' ? invoiceNo : '', amount, model, fileName: docs === 'yes' ? fileName : '', fileUrl: docs === 'yes' ? fileUrl : '' } };
     updateLead(state.selectedId, patch, docs === 'yes' ? 'Sale marked complete with documents' : 'Sale marked complete — documents pending');
     setState({ saleForm: emptySaleForm });
     showToast('Sale recorded');

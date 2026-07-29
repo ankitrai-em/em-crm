@@ -1,13 +1,28 @@
 import 'dotenv/config';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import express from 'express';
 import cors from 'cors';
+import multer from 'multer';
 import { nanoid } from 'nanoid';
 import { listLeads, getLead, insertLead, patchLead, listUsers, getUser, getUserByName, insertUser, patchUser, deleteUser } from './db.js';
 import { placeCall } from './telephony.js';
 
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const UPLOADS_DIR = path.join(__dirname, '..', 'uploads');
+
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use('/uploads', express.static(UPLOADS_DIR));
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: UPLOADS_DIR,
+    filename: (_req, file, cb) => cb(null, `${nanoid(10)}${path.extname(file.originalname)}`),
+  }),
+  limits: { fileSize: 10 * 1024 * 1024 },
+});
 
 const PORT = process.env.PORT || 8787;
 
@@ -108,6 +123,13 @@ app.post('/api/leads/:id/call', async (req, res) => {
   } catch (err) {
     res.status(502).json({ error: err.message });
   }
+});
+
+// Invoice / document upload. Field name must be "file". Returns the stored filename,
+// which the client persists on the lead's sale record and can fetch back from /uploads/:fileName.
+app.post('/api/uploads', upload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'file is required' });
+  res.status(201).json({ fileName: req.file.filename, originalName: req.file.originalname, url: `/uploads/${req.file.filename}` });
 });
 
 // ---- users ----

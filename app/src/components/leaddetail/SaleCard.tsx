@@ -1,5 +1,6 @@
 import type { Lead } from '../../types';
 import { useApp } from '../../store/AppStore';
+import { apiBaseUrl } from '../../lib/api';
 import { UploadIcon } from '../icons/Icons';
 
 export function SaleCard({ lead }: { lead: Lead }) {
@@ -21,7 +22,14 @@ export function SaleCard({ lead }: { lead: Lead }) {
           </div>
           {hasInvoice && (
             <div>
-              <span style={{ color: 'var(--color-neutral-600)' }}>Invoice:</span> {lead.sale.invoiceNo} — {lead.sale.fileName}
+              <span style={{ color: 'var(--color-neutral-600)' }}>Invoice:</span> {lead.sale.invoiceNo} —{' '}
+              {lead.sale.fileUrl ? (
+                <a href={`${apiBaseUrl}${lead.sale.fileUrl}`} target="_blank" rel="noreferrer" style={{ color: 'var(--color-accent-700)' }}>
+                  {lead.sale.fileName}
+                </a>
+              ) : (
+                lead.sale.fileName
+              )}
             </div>
           )}
           {missingInvoice && <div style={{ color: 'var(--color-accent-2-700)', fontWeight: 600 }}>Documents pending</div>}
@@ -86,8 +94,8 @@ export function SaleCard({ lead }: { lead: Lead }) {
                 <label style={{ display: 'block', fontSize: 11, marginBottom: 5, color: 'color-mix(in srgb, var(--color-text) 70%, transparent)' }}>Upload invoice</label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 36, padding: '6px 10px', fontSize: 13, background: 'var(--color-bg)', border: '1px dashed var(--color-divider)', borderRadius: 'var(--radius-md)', cursor: 'pointer', color: 'var(--color-neutral-600)' }}>
                   <UploadIcon size={15} />
-                  {form.fileName || 'Choose file…'}
-                  <input type="file" accept=".pdf,.jpg,.png" onChange={(e) => onInvoiceFile(e.target.files?.[0])} style={{ display: 'none' }} />
+                  {form.uploading ? 'Uploading…' : form.fileName || 'Choose file…'}
+                  <input type="file" accept=".pdf,.jpg,.png" disabled={form.uploading} onChange={(e) => onInvoiceFile(e.target.files?.[0])} style={{ display: 'none' }} />
                 </label>
               </div>
             </div>

@@ -33,6 +33,7 @@ export interface Sale {
   amount: string;
   model: string;
   fileName: string;
+  fileUrl?: string;
 }
 
 export interface Lead {
@@ -80,6 +81,8 @@ export interface SaleForm {
   amount: string;
   model: string;
   fileName: string;
+  fileUrl: string;
+  uploading: boolean;
 }
 
 export type FilterKey = 'stage' | 'source' | 'city' | 'owner' | 'created' | 'followup' | 'task';
