@@ -11,6 +11,7 @@
     "bcryptjs": "^3.0.3",
     "better-sqlite3": "^11.9.1",
     "cors": "^2.8.5",
+    "csv-parse": "^7.0.1",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.3",

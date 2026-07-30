@@ -11,6 +11,12 @@ import { UserModal } from './components/modals/UserModal';
 import { ResetPasswordModal } from './components/modals/ResetPasswordModal';
 import { LoginPage } from './components/LoginPage';
 import { IntegrationsPage } from './components/IntegrationsPage';
+import { AuditLogPage } from './components/AuditLogPage';
+import { DealersPage } from './components/DealersPage';
+import { InventoryPage } from './components/InventoryPage';
+import { AccessoriesPage } from './components/AccessoriesPage';
+import { SalesAuditPage } from './components/SalesAuditPage';
+import { DispositionsPage } from './components/DispositionsPage';
 
 function Screen() {
   const { state } = useApp();
@@ -18,6 +24,12 @@ function Screen() {
   if (state.view === 'leads') return <LeadsGrid />;
   if (state.view === 'users') return <UsersPage />;
   if (state.view === 'integrations') return <IntegrationsPage />;
+  if (state.view === 'audit-log') return <AuditLogPage />;
+  if (state.view === 'dealers') return <DealersPage />;
+  if (state.view === 'inventory') return <InventoryPage />;
+  if (state.view === 'accessories') return <AccessoriesPage />;
+  if (state.view === 'sales-audit') return <SalesAuditPage />;
+  if (state.view === 'dispositions') return <DispositionsPage />;
   return <LeadDetail />;
 }
 

@@ -1,41 +1,71 @@
+import { useState } from 'react';
 import { useApp } from '../store/AppStore';
 import { initials } from '../data/format';
+import type { View } from '../types';
 
 export function Nav() {
-  const { state, goDashboard, goLeads, goUsers, goIntegrations, logout } = useApp();
+  const { state, goDashboard, goLeads, goUsers, goInventory, goAccessories, goIntegrations, goDispositions, goDealers, goAuditLog, goSalesAudit, logout } = useApp();
+  const [adminOpen, setAdminOpen] = useState(false);
   const view = state.view;
   const user = state.currentUser;
-  const dashboardColor = view === 'dashboard' ? 'var(--color-accent-700)' : 'var(--color-text)';
-  const leadsColor = view === 'leads' || view === 'detail' ? 'var(--color-accent-700)' : 'var(--color-text)';
-  const usersColor = view === 'users' ? 'var(--color-accent-700)' : 'var(--color-text)';
-  const integrationsColor = view === 'integrations' ? 'var(--color-accent-700)' : 'var(--color-text)';
-  const dashboardWeight = view === 'dashboard' ? 600 : 400;
-  const leadsWeight = view === 'leads' || view === 'detail' ? 600 : 400;
-  const usersWeight = view === 'users' ? 600 : 400;
-  const integrationsWeight = view === 'integrations' ? 600 : 400;
+  const isAdmin = user?.role === 'Admin';
+
+  const linkStyle = (active: boolean) => ({ fontSize: 14, color: active ? 'var(--color-accent-700)' : 'var(--color-text)', fontWeight: active ? 600 : 400 });
+  const adminViews: View[] = ['integrations', 'dispositions', 'dealers', 'audit-log', 'sales-audit'];
+  const adminActive = adminViews.includes(view);
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 36, padding: '20px 48px' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 36, padding: '20px 48px', position: 'relative' }}>
       <div
         style={{ fontFamily: 'var(--font-heading)', fontWeight: 600, fontSize: 19, letterSpacing: '-0.01em', cursor: 'pointer' }}
         onClick={goDashboard}
       >
         EM Leads
       </div>
-      <div style={{ display: 'flex', gap: 26, marginRight: 'auto' }}>
-        <a href="#" style={{ fontSize: 14, color: dashboardColor, fontWeight: dashboardWeight }} onClick={(e) => { e.preventDefault(); goDashboard(); }}>
+      <div style={{ display: 'flex', gap: 26, marginRight: 'auto', alignItems: 'center' }}>
+        <a href="#" style={linkStyle(view === 'dashboard')} onClick={(e) => { e.preventDefault(); goDashboard(); }}>
           Dashboard
         </a>
-        <a href="#" style={{ fontSize: 14, color: leadsColor, fontWeight: leadsWeight }} onClick={(e) => { e.preventDefault(); goLeads(); }}>
+        <a href="#" style={linkStyle(view === 'leads' || view === 'detail')} onClick={(e) => { e.preventDefault(); goLeads(); }}>
           Leads
         </a>
-        <a href="#" style={{ fontSize: 14, color: usersColor, fontWeight: usersWeight }} onClick={(e) => { e.preventDefault(); goUsers(); }}>
+        <a href="#" style={linkStyle(view === 'users')} onClick={(e) => { e.preventDefault(); goUsers(); }}>
           Users
         </a>
-        {user?.role === 'Admin' && (
-          <a href="#" style={{ fontSize: 14, color: integrationsColor, fontWeight: integrationsWeight }} onClick={(e) => { e.preventDefault(); goIntegrations(); }}>
-            Integrations
-          </a>
+        <a href="#" style={linkStyle(view === 'inventory')} onClick={(e) => { e.preventDefault(); goInventory(); }}>
+          Inventory
+        </a>
+        <a href="#" style={linkStyle(view === 'accessories')} onClick={(e) => { e.preventDefault(); goAccessories(); }}>
+          Accessories
+        </a>
+        {isAdmin && (
+          <div style={{ position: 'relative' }}>
+            <a href="#" style={linkStyle(adminActive)} onClick={(e) => { e.preventDefault(); setAdminOpen((o) => !o); }}>
+              Admin ▾
+            </a>
+            {adminOpen && (
+              <div
+                style={{ position: 'absolute', top: '100%', left: 0, marginTop: 8, background: 'var(--color-surface)', boxShadow: 'var(--shadow-lg)', borderRadius: 'var(--radius-md)', padding: 8, display: 'flex', flexDirection: 'column', gap: 4, minWidth: 160, zIndex: 40 }}
+              >
+                {[
+                  { label: 'Integrations', view: 'integrations' as View, go: goIntegrations },
+                  { label: 'Dispositions', view: 'dispositions' as View, go: goDispositions },
+                  { label: 'Dealers', view: 'dealers' as View, go: goDealers },
+                  { label: 'Audit Log', view: 'audit-log' as View, go: goAuditLog },
+                  { label: 'Sales Audit', view: 'sales-audit' as View, go: goSalesAudit },
+                ].map((item) => (
+                  <a
+                    key={item.view}
+                    href="#"
+                    style={{ fontSize: 13, padding: '6px 10px', borderRadius: 4, color: view === item.view ? 'var(--color-accent-700)' : 'var(--color-text)', fontWeight: view === item.view ? 600 : 400 }}
+                    onClick={(e) => { e.preventDefault(); item.go(); setAdminOpen(false); }}
+                  >
+                    {item.label}
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
         )}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>

@@ -1,10 +1,10 @@
-import { DISPOSITIONS, getDisposition } from '../../data/constants';
 import { useApp } from '../../store/AppStore';
 
 export function RemarksCard() {
   const { state, openCallForm, cancelCallForm, updateCallForm, saveCallOutcome } = useApp();
   const form = state.callForm;
-  const isConnected = getDisposition(form.disposition).connected;
+  const disposition = state.dispositions.find((d) => d.id === form.dispositionId);
+  const isConnected = disposition?.connected ?? false;
 
   return (
     <div style={{ background: 'var(--color-surface)', borderRadius: 'var(--radius-md)', padding: 22 }}>
@@ -19,19 +19,38 @@ export function RemarksCard() {
       )}
       {form.open && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div style={{ maxWidth: 280 }}>
-            <label style={{ display: 'block', fontSize: 11, marginBottom: 5, color: 'color-mix(in srgb, var(--color-text) 70%, transparent)' }}>Disposition</label>
-            <select
-              value={form.disposition}
-              onChange={(e) => updateCallForm({ disposition: e.target.value })}
-              style={{ width: '100%', minHeight: 36, padding: '6px 10px', fontSize: 13, background: 'var(--color-bg)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-md)' }}
-            >
-              {DISPOSITIONS.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.label}
-                </option>
-              ))}
-            </select>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: 180 }}>
+              <label style={{ display: 'block', fontSize: 11, marginBottom: 5, color: 'color-mix(in srgb, var(--color-text) 70%, transparent)' }}>Disposition</label>
+              <select
+                value={form.dispositionId}
+                onChange={(e) => updateCallForm({ dispositionId: e.target.value, subDispositionId: '' })}
+                style={{ width: '100%', minHeight: 36, padding: '6px 10px', fontSize: 13, background: 'var(--color-bg)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-md)' }}
+              >
+                <option value="">Select…</option>
+                {state.dispositions.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={{ flex: 1, minWidth: 180 }}>
+              <label style={{ display: 'block', fontSize: 11, marginBottom: 5, color: 'color-mix(in srgb, var(--color-text) 70%, transparent)' }}>Sub-disposition</label>
+              <select
+                value={form.subDispositionId}
+                onChange={(e) => updateCallForm({ subDispositionId: e.target.value })}
+                disabled={!disposition}
+                style={{ width: '100%', minHeight: 36, padding: '6px 10px', fontSize: 13, background: 'var(--color-bg)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-md)' }}
+              >
+                <option value="">Select…</option>
+                {disposition?.subDispositions.map((sd) => (
+                  <option key={sd.id} value={sd.id}>
+                    {sd.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
           {isConnected && (
             <div style={{ maxWidth: 220 }}>

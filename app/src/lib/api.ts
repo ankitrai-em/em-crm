@@ -1,4 +1,4 @@
-import type { ActivityEntry, Lead, Role, Sale, TestRide, User } from '../types';
+import type { Accessory, ActivityEntry, AuditLogEntry, Dealer, Disposition, InventoryItem, Lead, Role, Sale, SaleAuditRow, TestRide, User } from '../types';
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787';
 const TOKEN_KEY = 'emcrm_token';
@@ -89,6 +89,12 @@ export interface TelephonyConfig {
   exotel: { sid?: string; apiKey?: string; apiToken?: string; callerId?: string; agentNumber?: string; subdomain?: string };
 }
 
+export interface NewInventoryInput {
+  modelRange: string;
+  modelSku: string;
+  modelColour: string;
+}
+
 export const api = {
   login: (email: string, password: string) => request<LoginResult>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   me: () => request<User>('/api/auth/me'),
@@ -122,6 +128,44 @@ export const api = {
     }
     return res.json();
   },
+
+  getAuditLog: () => request<AuditLogEntry[]>('/api/audit-log'),
+
+  getDispositions: () => request<Disposition[]>('/api/settings/dispositions'),
+  saveDispositions: (list: Disposition[]) => request<Disposition[]>('/api/settings/dispositions', { method: 'PUT', body: JSON.stringify(list) }),
+
+  getDealerStates: () => request<string[]>('/api/dealers/states'),
+  getDealerCities: (state: string) => request<string[]>(`/api/dealers/cities?state=${encodeURIComponent(state)}`),
+  getDealers: (state: string, city: string) => request<Dealer[]>(`/api/dealers?state=${encodeURIComponent(state)}&city=${encodeURIComponent(city)}`),
+  getDealerCount: () => request<{ count: number }>('/api/dealers/count'),
+  importDealers: async (file: File): Promise<{ count: number }> => {
+    const token = auth.getToken();
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${BASE_URL}/api/dealers/import`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      body: formData,
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || `Import failed (${res.status})`);
+    }
+    return res.json();
+  },
+
+  listInventory: () => request<InventoryItem[]>('/api/inventory'),
+  createInventoryItem: (input: NewInventoryInput) => request<InventoryItem>('/api/inventory', { method: 'POST', body: JSON.stringify(input) }),
+  patchInventoryItem: (id: string, patch: Partial<NewInventoryInput>) => request<InventoryItem>(`/api/inventory/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
+  deleteInventoryItem: (id: string) => request<{ ok: true }>(`/api/inventory/${id}`, { method: 'DELETE' }),
+
+  listAccessories: () => request<Accessory[]>('/api/accessories'),
+  createAccessory: (name: string) => request<Accessory>('/api/accessories', { method: 'POST', body: JSON.stringify({ name }) }),
+  deleteAccessory: (id: string) => request<{ ok: true }>(`/api/accessories/${id}`, { method: 'DELETE' }),
+
+  getSales: () => request<SaleAuditRow[]>('/api/sales'),
+  auditSale: (leadId: string, auditStatus: 'successful' | 'rejected', auditNote: string) =>
+    request<Lead>(`/api/leads/${leadId}/sale-audit`, { method: 'PATCH', body: JSON.stringify({ auditStatus, auditNote }) }),
 };
 
 export const apiBaseUrl = BASE_URL;

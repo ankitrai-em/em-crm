@@ -7,10 +7,11 @@ import { RemarksCard } from './RemarksCard';
 import { TestRideCard } from './TestRideCard';
 import { SaleCard } from './SaleCard';
 import { ActivityFeed } from './ActivityFeed';
+import { ContactEditModal } from '../modals/ContactEditModal';
 import type { StageId } from '../../types';
 
 export function LeadDetail() {
-  const { state, backToLeads, callLead, manualStageChange } = useApp();
+  const { state, backToLeads, callLead, manualStageChange, openEditContact } = useApp();
   const lead = state.leads.find((l) => l.id === state.selectedId);
   if (!lead) return null;
 
@@ -37,6 +38,12 @@ export function LeadDetail() {
               {lead.reTriggered && (
                 <span style={{ display: 'inline-flex', marginLeft: 6, fontSize: 10, fontWeight: 700, letterSpacing: '.03em', padding: '3px 8px', borderRadius: 3, border: '1px solid var(--color-accent-2)', color: 'var(--color-accent-2-700)' }}>
                   RT
+                </span>
+              )}
+              {lead.disposition && (
+                <span style={{ display: 'inline-flex', marginLeft: 6, fontSize: 10, fontWeight: 700, letterSpacing: '.03em', padding: '3px 8px', borderRadius: 3, background: 'var(--color-accent-100)', color: 'var(--color-accent-800)' }}>
+                  {lead.disposition}
+                  {lead.subDisposition ? ` · ${lead.subDisposition}` : ''}
                 </span>
               )}
             </div>
@@ -67,6 +74,12 @@ export function LeadDetail() {
                 {lead.city}, {lead.pin}
               </div>
             </div>
+            <button
+              style={{ background: 'transparent', color: 'var(--color-accent-700)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-md)', padding: '6px 12px', fontSize: 12, cursor: 'pointer', width: 'fit-content' }}
+              onClick={() => openEditContact(lead.id)}
+            >
+              Edit contact info
+            </button>
           </div>
 
           <div style={{ background: 'var(--color-surface)', borderRadius: 'var(--radius-md)', padding: 22, display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -106,6 +119,7 @@ export function LeadDetail() {
           <ActivityFeed lead={lead} />
         </div>
       </div>
+      <ContactEditModal />
     </div>
   );
 }

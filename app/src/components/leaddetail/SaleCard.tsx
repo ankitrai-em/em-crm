@@ -1,10 +1,14 @@
 import type { Lead } from '../../types';
 import { useApp } from '../../store/AppStore';
 import { apiBaseUrl } from '../../lib/api';
+import { formatDate } from '../../data/format';
 import { UploadIcon } from '../icons/Icons';
 
+const AUDIT_LABEL: Record<string, string> = { pending: 'Audit pending', successful: 'Audit successful', rejected: 'Audit rejected' };
+const AUDIT_COLOR: Record<string, string> = { pending: 'var(--color-neutral-600)', successful: 'var(--color-accent-700)', rejected: 'var(--color-accent-2-700)' };
+
 export function SaleCard({ lead }: { lead: Lead }) {
-  const { state, openSaleForm, cancelSaleForm, setSaleDocs, updateSaleForm, onInvoiceFile, saveSale } = useApp();
+  const { state, openSaleForm, cancelSaleForm, setSaleDocs, updateSaleForm, toggleSaleAccessory, onInvoiceFile, saveSale } = useApp();
   const form = state.saleForm;
   const hasInvoice = !!(lead.sale && lead.sale.invoiceNo);
   const missingInvoice = !!(lead.sale && !lead.sale.invoiceNo);
@@ -15,11 +19,22 @@ export function SaleCard({ lead }: { lead: Lead }) {
       {lead.sale && (
         <div style={{ fontSize: 13, display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
           <div>
-            <span style={{ color: 'var(--color-neutral-600)' }}>Model:</span> {lead.sale.model}
+            <span style={{ color: 'var(--color-neutral-600)' }}>Model:</span> {lead.sale.modelRange} / {lead.sale.modelSku} / {lead.sale.modelColour}
           </div>
           <div>
-            <span style={{ color: 'var(--color-neutral-600)' }}>Amount:</span> ₹{lead.sale.amount}
+            <span style={{ color: 'var(--color-neutral-600)' }}>Amount:</span> ₹{lead.sale.amount} × {lead.sale.quantity}
           </div>
+          <div>
+            <span style={{ color: 'var(--color-neutral-600)' }}>Sale date:</span> {lead.sale.saleDate ? formatDate(lead.sale.saleDate) : '—'}
+          </div>
+          <div>
+            <span style={{ color: 'var(--color-neutral-600)' }}>Source:</span> {lead.sale.saleSource}{lead.sale.sourceName ? ` — ${lead.sale.sourceName}` : ''}
+          </div>
+          {lead.sale.accessories.length > 0 && (
+            <div>
+              <span style={{ color: 'var(--color-neutral-600)' }}>Accessories:</span> {lead.sale.accessories.join(', ')}
+            </div>
+          )}
           {hasInvoice && (
             <div>
               <span style={{ color: 'var(--color-neutral-600)' }}>Invoice:</span> {lead.sale.invoiceNo} —{' '}
@@ -33,6 +48,10 @@ export function SaleCard({ lead }: { lead: Lead }) {
             </div>
           )}
           {missingInvoice && <div style={{ color: 'var(--color-accent-2-700)', fontWeight: 600 }}>Documents pending</div>}
+          <div style={{ fontWeight: 600, color: AUDIT_COLOR[lead.sale.auditStatus] }}>
+            {AUDIT_LABEL[lead.sale.auditStatus]}
+            {lead.sale.auditStatus === 'rejected' && lead.sale.auditNote ? ` — ${lead.sale.auditNote}` : ''}
+          </div>
         </div>
       )}
       {!form.open && (
@@ -59,16 +78,25 @@ export function SaleCard({ lead }: { lead: Lead }) {
               With docs
             </button>
           </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: 11, marginBottom: 5, color: 'color-mix(in srgb, var(--color-text) 70%, transparent)' }}>Model (from Inventory)</label>
+            <select
+              value={form.inventoryId}
+              onChange={(e) => updateSaleForm({ inventoryId: e.target.value })}
+              style={{ width: '100%', maxWidth: 360, minHeight: 36, padding: '6px 10px', fontSize: 13, background: 'var(--color-bg)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-md)' }}
+            >
+              <option value="">Select model…</option>
+              {state.inventory.map((i) => (
+                <option key={i.id} value={i.id}>
+                  {i.modelRange} / {i.modelSku} / {i.modelColour}
+                </option>
+              ))}
+            </select>
+            {state.inventory.length === 0 && <div style={{ fontSize: 11, color: 'var(--color-accent-2-700)', marginTop: 4 }}>No inventory items yet — add some on the Inventory page.</div>}
+          </div>
+
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            <div style={{ flex: 1, minWidth: 160 }}>
-              <label style={{ display: 'block', fontSize: 11, marginBottom: 5, color: 'color-mix(in srgb, var(--color-text) 70%, transparent)' }}>Vehicle model / variant</label>
-              <input
-                type="text"
-                value={form.model}
-                onChange={(e) => updateSaleForm({ model: e.target.value })}
-                style={{ width: '100%', minHeight: 36, padding: '6px 10px', fontSize: 13, background: 'var(--color-bg)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-md)' }}
-              />
-            </div>
             <div style={{ flex: 1, minWidth: 140 }}>
               <label style={{ display: 'block', fontSize: 11, marginBottom: 5, color: 'color-mix(in srgb, var(--color-text) 70%, transparent)' }}>Sale amount (₹)</label>
               <input
@@ -78,7 +106,67 @@ export function SaleCard({ lead }: { lead: Lead }) {
                 style={{ width: '100%', minHeight: 36, padding: '6px 10px', fontSize: 13, background: 'var(--color-bg)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-md)' }}
               />
             </div>
+            <div style={{ flex: 1, minWidth: 100 }}>
+              <label style={{ display: 'block', fontSize: 11, marginBottom: 5, color: 'color-mix(in srgb, var(--color-text) 70%, transparent)' }}>Quantity</label>
+              <input
+                type="number"
+                min={1}
+                value={form.quantity}
+                onChange={(e) => updateSaleForm({ quantity: e.target.value })}
+                style={{ width: '100%', minHeight: 36, padding: '6px 10px', fontSize: 13, background: 'var(--color-bg)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-md)' }}
+              />
+            </div>
+            <div style={{ flex: 1, minWidth: 160 }}>
+              <label style={{ display: 'block', fontSize: 11, marginBottom: 5, color: 'color-mix(in srgb, var(--color-text) 70%, transparent)' }}>Sale date</label>
+              <input
+                type="date"
+                value={form.saleDate}
+                onChange={(e) => updateSaleForm({ saleDate: e.target.value })}
+                style={{ width: '100%', minHeight: 36, padding: '6px 10px', fontSize: 13, background: 'var(--color-bg)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-md)' }}
+              />
+            </div>
           </div>
+
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: 140 }}>
+              <label style={{ display: 'block', fontSize: 11, marginBottom: 5, color: 'color-mix(in srgb, var(--color-text) 70%, transparent)' }}>Sale source</label>
+              <select
+                value={form.saleSource}
+                onChange={(e) => updateSaleForm({ saleSource: e.target.value as typeof form.saleSource })}
+                style={{ width: '100%', minHeight: 36, padding: '6px 10px', fontSize: 13, background: 'var(--color-bg)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-md)' }}
+              >
+                <option value="D2C">D2C</option>
+                <option value="Ecom">Ecom</option>
+                <option value="Dealer">Dealer</option>
+              </select>
+            </div>
+            {form.saleSource !== 'D2C' && (
+              <div style={{ flex: 1, minWidth: 180 }}>
+                <label style={{ display: 'block', fontSize: 11, marginBottom: 5, color: 'color-mix(in srgb, var(--color-text) 70%, transparent)' }}>{form.saleSource} name</label>
+                <input
+                  type="text"
+                  value={form.sourceName}
+                  onChange={(e) => updateSaleForm({ sourceName: e.target.value })}
+                  style={{ width: '100%', minHeight: 36, padding: '6px 10px', fontSize: 13, background: 'var(--color-bg)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-md)' }}
+                />
+              </div>
+            )}
+          </div>
+
+          {state.accessories.length > 0 && (
+            <div>
+              <label style={{ display: 'block', fontSize: 11, marginBottom: 5, color: 'color-mix(in srgb, var(--color-text) 70%, transparent)' }}>Accessories</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                {state.accessories.map((a) => (
+                  <label key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+                    <input type="checkbox" checked={form.accessories.includes(a.name)} onChange={() => toggleSaleAccessory(a.name)} />
+                    {a.name}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
           {form.docs === 'yes' && (
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
               <div style={{ flex: 1, minWidth: 160 }}>

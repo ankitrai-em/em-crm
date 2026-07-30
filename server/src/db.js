@@ -76,6 +76,10 @@ const leadColumns = db.prepare('PRAGMA table_info(leads)').all().map((c) => c.na
 if (!leadColumns.includes('meta')) {
   db.exec("ALTER TABLE leads ADD COLUMN meta TEXT NOT NULL DEFAULT '{}'");
 }
+if (!leadColumns.includes('disposition')) {
+  db.exec("ALTER TABLE leads ADD COLUMN disposition TEXT NOT NULL DEFAULT ''");
+  db.exec("ALTER TABLE leads ADD COLUMN subDisposition TEXT NOT NULL DEFAULT ''");
+}
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS settings (
@@ -83,6 +87,74 @@ db.exec(`
     value TEXT NOT NULL
   );
 `);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS audit_log (
+    id TEXT PRIMARY KEY,
+    ts INTEGER NOT NULL,
+    actorId TEXT,
+    actorName TEXT,
+    action TEXT NOT NULL,
+    targetId TEXT,
+    targetName TEXT,
+    details TEXT NOT NULL DEFAULT '{}'
+  );
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS dealers (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    city TEXT,
+    state TEXT,
+    pin TEXT,
+    address TEXT,
+    phone TEXT,
+    status TEXT,
+    franchiseCode TEXT
+  );
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS inventory (
+    id TEXT PRIMARY KEY,
+    modelRange TEXT NOT NULL,
+    modelSku TEXT NOT NULL,
+    modelColour TEXT NOT NULL,
+    createdOn INTEGER NOT NULL
+  );
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS accessories (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    createdOn INTEGER NOT NULL
+  );
+`);
+
+const DEFAULT_DISPOSITIONS = [
+  {
+    id: 'not_connected', label: 'Not Connected', connected: false,
+    subDispositions: [
+      { id: 'switched_off', label: 'Switched Off' },
+      { id: 'busy', label: 'Busy' },
+      { id: 'ringing_no_response', label: 'Ringing - No Response' },
+      { id: 'wrong_number', label: 'Wrong Number' },
+    ],
+  },
+  {
+    id: 'connected', label: 'Connected', connected: true,
+    subDispositions: [
+      { id: 'interested', label: 'Interested' },
+      { id: 'callback', label: 'Call Back Later' },
+      { id: 'not_interested', label: 'Not Interested' },
+    ],
+  },
+];
+if (getSetting('dispositions') === null) {
+  setSetting('dispositions', DEFAULT_DISPOSITIONS);
+}
 
 export function getSetting(key) {
   const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
@@ -168,8 +240,8 @@ export function getLead(id) {
 
 export function insertLead(lead) {
   db.prepare(`
-    INSERT INTO leads (id, name, phone, email, city, pin, source, campaign, createdOn, owner, stage, leadScore, followupAt, taskDate, reTriggered, attempts, activity, testRide, sale, meta)
-    VALUES (@id, @name, @phone, @email, @city, @pin, @source, @campaign, @createdOn, @owner, @stage, @leadScore, @followupAt, @taskDate, @reTriggered, @attempts, @activity, @testRide, @sale, @meta)
+    INSERT INTO leads (id, name, phone, email, city, pin, source, campaign, createdOn, owner, stage, leadScore, followupAt, taskDate, reTriggered, attempts, activity, testRide, sale, meta, disposition, subDisposition)
+    VALUES (@id, @name, @phone, @email, @city, @pin, @source, @campaign, @createdOn, @owner, @stage, @leadScore, @followupAt, @taskDate, @reTriggered, @attempts, @activity, @testRide, @sale, @meta, @disposition, @subDisposition)
   `).run({
     ...lead,
     reTriggered: lead.reTriggered ? 1 : 0,
@@ -177,11 +249,13 @@ export function insertLead(lead) {
     testRide: lead.testRide ? JSON.stringify(lead.testRide) : null,
     sale: lead.sale ? JSON.stringify(lead.sale) : null,
     meta: JSON.stringify(lead.meta || {}),
+    disposition: lead.disposition || '',
+    subDisposition: lead.subDisposition || '',
   });
   return getLead(lead.id);
 }
 
-const PATCHABLE = ['name', 'phone', 'email', 'city', 'pin', 'source', 'campaign', 'owner', 'stage', 'leadScore', 'followupAt', 'taskDate', 'reTriggered', 'attempts', 'testRide', 'sale', 'meta'];
+const PATCHABLE = ['name', 'phone', 'email', 'city', 'pin', 'source', 'campaign', 'owner', 'stage', 'leadScore', 'followupAt', 'taskDate', 'reTriggered', 'attempts', 'testRide', 'sale', 'meta', 'disposition', 'subDisposition'];
 
 export function patchLead(id, patch, newActivityEntry) {
   const existing = getLead(id);
@@ -207,4 +281,90 @@ export function patchLead(id, patch, newActivityEntry) {
 
   db.prepare(`UPDATE leads SET ${sets.join(', ')} WHERE id = @id`).run(params);
   return getLead(id);
+}
+
+// ---- audit log ----
+
+export function insertAuditLog(entry) {
+  db.prepare(`
+    INSERT INTO audit_log (id, ts, actorId, actorName, action, targetId, targetName, details)
+    VALUES (@id, @ts, @actorId, @actorName, @action, @targetId, @targetName, @details)
+  `).run({ ...entry, details: JSON.stringify(entry.details || {}) });
+}
+
+export function listAuditLog() {
+  return db.prepare('SELECT * FROM audit_log ORDER BY ts DESC').all().map((row) => ({ ...row, details: JSON.parse(row.details || '{}') }));
+}
+
+// ---- dealers (test ride locations, synced from an admin-uploaded CSV) ----
+
+export function listDealerStates() {
+  return db.prepare("SELECT DISTINCT state FROM dealers WHERE status = 'Active' AND state IS NOT NULL AND state != '' ORDER BY state ASC").all().map((r) => r.state);
+}
+
+export function listDealerCities(state) {
+  return db.prepare("SELECT DISTINCT city FROM dealers WHERE status = 'Active' AND state = ? AND city IS NOT NULL AND city != '' ORDER BY city ASC").all(state).map((r) => r.city);
+}
+
+export function listDealers(state, city) {
+  return db.prepare("SELECT * FROM dealers WHERE status = 'Active' AND state = ? AND city = ? ORDER BY name ASC").all(state, city);
+}
+
+export function countDealers() {
+  return db.prepare('SELECT COUNT(*) as n FROM dealers').get().n;
+}
+
+export function replaceDealers(rows) {
+  const insert = db.prepare(`
+    INSERT INTO dealers (id, name, city, state, pin, address, phone, status, franchiseCode)
+    VALUES (@id, @name, @city, @state, @pin, @address, @phone, @status, @franchiseCode)
+  `);
+  const tx = db.transaction((rows) => {
+    db.prepare('DELETE FROM dealers').run();
+    for (const row of rows) insert.run(row);
+  });
+  tx(rows);
+  return countDealers();
+}
+
+// ---- inventory ----
+
+export function listInventory() {
+  return db.prepare('SELECT * FROM inventory ORDER BY modelRange ASC, modelSku ASC, modelColour ASC').all();
+}
+
+export function getInventoryItem(id) {
+  return db.prepare('SELECT * FROM inventory WHERE id = ?').get(id) || null;
+}
+
+export function insertInventoryItem(item) {
+  db.prepare('INSERT INTO inventory (id, modelRange, modelSku, modelColour, createdOn) VALUES (@id, @modelRange, @modelSku, @modelColour, @createdOn)').run(item);
+  return getInventoryItem(item.id);
+}
+
+export function patchInventoryItem(id, patch) {
+  const existing = getInventoryItem(id);
+  if (!existing) return null;
+  const merged = { ...existing, ...patch };
+  db.prepare('UPDATE inventory SET modelRange = @modelRange, modelSku = @modelSku, modelColour = @modelColour WHERE id = @id').run({ id, modelRange: merged.modelRange, modelSku: merged.modelSku, modelColour: merged.modelColour });
+  return getInventoryItem(id);
+}
+
+export function deleteInventoryItem(id) {
+  db.prepare('DELETE FROM inventory WHERE id = ?').run(id);
+}
+
+// ---- accessories ----
+
+export function listAccessories() {
+  return db.prepare('SELECT * FROM accessories ORDER BY name ASC').all();
+}
+
+export function insertAccessory(item) {
+  db.prepare('INSERT INTO accessories (id, name, createdOn) VALUES (@id, @name, @createdOn)').run(item);
+  return db.prepare('SELECT * FROM accessories WHERE id = ?').get(item.id);
+}
+
+export function deleteAccessory(id) {
+  db.prepare('DELETE FROM accessories WHERE id = ?').run(id);
 }

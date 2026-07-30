@@ -1,12 +1,39 @@
-import type { Lead } from '../../types';
+import { useEffect, useState } from 'react';
+import type { Dealer, Lead } from '../../types';
 import { formatDateTime } from '../../data/format';
 import { useApp } from '../../store/AppStore';
-
-const STORES = ['MG Road Experience Store', 'Whitefield Hub', 'Andheri West Showroom', 'Salt Lake Studio', 'Anna Nagar Store'];
+import { api } from '../../lib/api';
 
 export function TestRideCard({ lead }: { lead: Lead }) {
-  const { state, openTestRideForm, cancelTestRideForm, updateTestRideForm, saveTestRide } = useApp();
+  const { state, showToast, openTestRideForm, cancelTestRideForm, updateTestRideForm, saveTestRide } = useApp();
   const form = state.testRideForm;
+
+  const [states, setStates] = useState<string[]>([]);
+  const [cities, setCities] = useState<string[]>([]);
+  const [dealers, setDealers] = useState<Dealer[]>([]);
+
+  useEffect(() => {
+    if (!form.open) return;
+    api.getDealerStates().then(setStates).catch((err) => showToast('Could not load states: ' + err.message));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.open]);
+
+  useEffect(() => {
+    setCities([]);
+    setDealers([]);
+    if (!form.state) return;
+    api.getDealerCities(form.state).then(setCities).catch((err) => showToast('Could not load cities: ' + err.message));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.state]);
+
+  useEffect(() => {
+    setDealers([]);
+    if (!form.state || !form.city) return;
+    api.getDealers(form.state, form.city).then(setDealers).catch((err) => showToast('Could not load dealers: ' + err.message));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.state, form.city]);
+
+  const selectedDealer = dealers.find((d) => d.id === form.dealerId);
 
   return (
     <div style={{ background: 'var(--color-surface)', borderRadius: 'var(--radius-md)', padding: 22 }}>
@@ -14,13 +41,16 @@ export function TestRideCard({ lead }: { lead: Lead }) {
       {lead.testRide && (
         <div style={{ fontSize: 13, display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
           <div>
-            <span style={{ color: 'var(--color-neutral-600)' }}>Store:</span> {lead.testRide.store}
+            <span style={{ color: 'var(--color-neutral-600)' }}>Dealer:</span> {lead.testRide.dealerName} ({lead.testRide.city}, {lead.testRide.state})
+          </div>
+          <div>
+            <span style={{ color: 'var(--color-neutral-600)' }}>Phone:</span> {lead.testRide.dealerPhone}
+          </div>
+          <div>
+            <span style={{ color: 'var(--color-neutral-600)' }}>Address:</span> {lead.testRide.dealerAddress}
           </div>
           <div>
             <span style={{ color: 'var(--color-neutral-600)' }}>When:</span> {formatDateTime(lead.testRide.date)}
-          </div>
-          <div>
-            <span style={{ color: 'var(--color-neutral-600)' }}>Dealer:</span> {lead.testRide.dealer}
           </div>
         </div>
       )}
@@ -43,34 +73,65 @@ export function TestRideCard({ lead }: { lead: Lead }) {
               style={{ width: '100%', maxWidth: 260, minHeight: 36, padding: '6px 10px', fontSize: 13, background: 'var(--color-bg)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-md)' }}
             />
           </div>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: 160 }}>
+              <label style={{ display: 'block', fontSize: 11, marginBottom: 5, color: 'color-mix(in srgb, var(--color-text) 70%, transparent)' }}>State</label>
+              <select
+                value={form.state}
+                onChange={(e) => updateTestRideForm({ state: e.target.value, city: '', dealerId: '' })}
+                style={{ width: '100%', minHeight: 36, padding: '6px 10px', fontSize: 13, background: 'var(--color-bg)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-md)' }}
+              >
+                <option value="">Select state…</option>
+                {states.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div style={{ flex: 1, minWidth: 160 }}>
+              <label style={{ display: 'block', fontSize: 11, marginBottom: 5, color: 'color-mix(in srgb, var(--color-text) 70%, transparent)' }}>City</label>
+              <select
+                value={form.city}
+                onChange={(e) => updateTestRideForm({ city: e.target.value, dealerId: '' })}
+                disabled={!form.state}
+                style={{ width: '100%', minHeight: 36, padding: '6px 10px', fontSize: 13, background: 'var(--color-bg)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-md)' }}
+              >
+                <option value="">Select city…</option>
+                {cities.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
           <div>
-            <label style={{ display: 'block', fontSize: 11, marginBottom: 5, color: 'color-mix(in srgb, var(--color-text) 70%, transparent)' }}>Store / Location</label>
+            <label style={{ display: 'block', fontSize: 11, marginBottom: 5, color: 'color-mix(in srgb, var(--color-text) 70%, transparent)' }}>Dealer</label>
             <select
-              value={form.store}
-              onChange={(e) => updateTestRideForm({ store: e.target.value })}
-              style={{ width: '100%', maxWidth: 280, minHeight: 36, padding: '6px 10px', fontSize: 13, background: 'var(--color-bg)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-md)' }}
+              value={form.dealerId}
+              onChange={(e) => updateTestRideForm({ dealerId: e.target.value })}
+              disabled={!form.city}
+              style={{ width: '100%', maxWidth: 340, minHeight: 36, padding: '6px 10px', fontSize: 13, background: 'var(--color-bg)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-md)' }}
             >
-              <option value="">Select store…</option>
-              {STORES.map((s) => (
-                <option key={s} value={s}>
-                  {s}
+              <option value="">Select dealer…</option>
+              {dealers.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
                 </option>
               ))}
             </select>
           </div>
-          <div>
-            <label style={{ display: 'block', fontSize: 11, marginBottom: 5, color: 'color-mix(in srgb, var(--color-text) 70%, transparent)' }}>Dealer / Rep name</label>
-            <input
-              type="text"
-              value={form.dealer}
-              onChange={(e) => updateTestRideForm({ dealer: e.target.value })}
-              style={{ width: '100%', maxWidth: 280, minHeight: 36, padding: '6px 10px', fontSize: 13, background: 'var(--color-bg)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-md)' }}
-            />
-          </div>
+          {selectedDealer && (
+            <div style={{ fontSize: 12, color: 'var(--color-neutral-600)', background: 'var(--color-bg)', borderRadius: 'var(--radius-md)', padding: 10 }}>
+              <div>Phone: {selectedDealer.phone}</div>
+              <div>Address: {selectedDealer.address}</div>
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 10 }}>
             <button
               style={{ background: 'var(--color-accent)', color: 'var(--color-bg)', border: '1px solid transparent', borderRadius: 'var(--radius-md)', padding: '9px 16px', fontFamily: 'var(--font-heading)', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}
-              onClick={saveTestRide}
+              onClick={() => selectedDealer && saveTestRide(selectedDealer)}
             >
               Save
             </button>
