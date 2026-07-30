@@ -1,11 +1,23 @@
 import type { ActivityEntry, Lead, Role, Sale, TestRide, User } from '../types';
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787';
+const TOKEN_KEY = 'emcrm_token';
+
+export const auth = {
+  getToken: () => localStorage.getItem(TOKEN_KEY),
+  setToken: (token: string) => localStorage.setItem(TOKEN_KEY, token),
+  clearToken: () => localStorage.removeItem(TOKEN_KEY),
+};
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = auth.getToken();
   const res = await fetch(`${BASE_URL}${path}`, {
     ...init,
-    headers: { 'Content-Type': 'application/json', ...init?.headers },
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...init?.headers,
+    },
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -65,7 +77,15 @@ export interface UploadResult {
   url: string;
 }
 
+export interface LoginResult {
+  token: string;
+  user: User;
+}
+
 export const api = {
+  login: (email: string, password: string) => request<LoginResult>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+  me: () => request<User>('/api/auth/me'),
+
   listLeads: () => request<Lead[]>('/api/leads'),
   createLead: (input: NewLeadInput) => request<Lead>('/api/leads', { method: 'POST', body: JSON.stringify(input) }),
   patchLead: (id: string, patch: LeadPatch) => request<Lead>(`/api/leads/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
@@ -75,11 +95,17 @@ export const api = {
   createUser: (input: NewUserInput) => request<User>('/api/users', { method: 'POST', body: JSON.stringify(input) }),
   patchUser: (id: string, patch: UserPatch) => request<User>(`/api/users/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   deleteUser: (id: string) => request<{ ok: true }>(`/api/users/${id}`, { method: 'DELETE' }),
+  resetUserPassword: (id: string, password: string) => request<User>(`/api/users/${id}/reset-password`, { method: 'POST', body: JSON.stringify({ password }) }),
 
   uploadInvoice: async (file: File): Promise<UploadResult> => {
+    const token = auth.getToken();
     const formData = new FormData();
     formData.append('file', file);
-    const res = await fetch(`${BASE_URL}/api/uploads`, { method: 'POST', body: formData });
+    const res = await fetch(`${BASE_URL}/api/uploads`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      body: formData,
+    });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       throw new Error(body.error || `Upload failed (${res.status})`);

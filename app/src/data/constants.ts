@@ -1,7 +1,5 @@
 import type { Disposition, Role, StageId, StageInfo } from '../types';
 
-export const CURRENT_AGENT = 'Aditya Narayan';
-
 export const NOW = Date.now();
 
 export const STAGES: Record<StageId, StageInfo> = {

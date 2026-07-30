@@ -1,8 +1,10 @@
 import { useApp } from '../store/AppStore';
+import { initials } from '../data/format';
 
 export function Nav() {
-  const { state, goDashboard, goLeads, goUsers } = useApp();
+  const { state, goDashboard, goLeads, goUsers, logout } = useApp();
   const view = state.view;
+  const user = state.currentUser;
   const dashboardColor = view === 'dashboard' ? 'var(--color-accent-700)' : 'var(--color-text)';
   const leadsColor = view === 'leads' || view === 'detail' ? 'var(--color-accent-700)' : 'var(--color-text)';
   const usersColor = view === 'users' ? 'var(--color-accent-700)' : 'var(--color-text)';
@@ -36,12 +38,15 @@ export function Nav() {
             display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 600, flex: 'none',
           }}
         >
-          AN
+          {initials(user?.name ?? null)}
         </div>
         <div>
-          <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.2 }}>Aditya Narayan</div>
-          <div style={{ fontSize: 11, color: 'var(--color-neutral-600)', lineHeight: 1.2 }}>Sales Agent</div>
+          <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.2 }}>{user?.name}</div>
+          <div style={{ fontSize: 11, color: 'var(--color-neutral-600)', lineHeight: 1.2 }}>{user?.role}</div>
         </div>
+        <a href="#" style={{ fontSize: 12, color: 'var(--color-neutral-600)', marginLeft: 4 }} onClick={(e) => { e.preventDefault(); logout(); }}>
+          Log out
+        </a>
       </div>
     </div>
   );

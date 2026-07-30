@@ -1,5 +1,5 @@
 import type { CallForm, FilterKey, Lead, SaleForm, TestRideForm, User, UserForm, View } from '../types';
-import { CURRENT_AGENT, NOW } from '../data/constants';
+import { NOW } from '../data/constants';
 import { toDateInputValue } from '../data/format';
 
 export interface AppState {
@@ -41,6 +41,14 @@ export interface AppState {
   leads: Lead[];
   users: User[];
   userForm: UserForm;
+  currentUser: User | null;
+  authChecked: boolean;
+  loginEmail: string;
+  loginPassword: string;
+  loginError: string;
+  loginBusy: boolean;
+  resetPwUserId: string | null;
+  resetPwValue: string;
 }
 
 export const emptyCallForm: CallForm = { open: false, disposition: 'not_reachable', duration: '', remarks: '' };
@@ -58,7 +66,7 @@ export function initialState(leads: Lead[]): AppState {
     stageFilter: [],
     sourceFilter: [],
     cityFilter: [],
-    ownerFilter: [CURRENT_AGENT],
+    ownerFilter: [],
     dateFrom: '',
     dateTo: '',
     followupFrom: '',
@@ -88,5 +96,13 @@ export function initialState(leads: Lead[]): AppState {
     leads,
     users: [],
     userForm: emptyUserForm,
+    currentUser: null,
+    authChecked: false,
+    loginEmail: '',
+    loginPassword: '',
+    loginError: '',
+    loginBusy: false,
+    resetPwUserId: null,
+    resetPwValue: '',
   };
 }

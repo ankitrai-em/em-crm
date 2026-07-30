@@ -1,9 +1,12 @@
 import Database from 'better-sqlite3';
+import bcrypt from 'bcryptjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'data.sqlite');
+
+export const DEFAULT_PASSWORD = '12345678';
 
 export const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
@@ -15,20 +18,31 @@ db.exec(`
     email TEXT,
     phone TEXT,
     role TEXT NOT NULL DEFAULT 'Agent',
+    password TEXT NOT NULL,
     createdOn INTEGER NOT NULL
   );
 `);
 
+const userColumns = db.prepare('PRAGMA table_info(users)').all().map((c) => c.name);
+if (!userColumns.includes('password')) {
+  db.exec("ALTER TABLE users ADD COLUMN password TEXT NOT NULL DEFAULT ''");
+  const defaultHash = bcrypt.hashSync(DEFAULT_PASSWORD, 10);
+  db.prepare("UPDATE users SET password = ? WHERE password = ''").run(defaultHash);
+}
+
 const DEFAULT_AGENTS = ['Aditya Narayan', 'Shreya Raj', 'Preeti Vankhede', 'Deep Malakar', 'Dip Roy', 'Shweta Madel', 'Yash Pawar'];
 if (db.prepare('SELECT COUNT(*) as n FROM users').get().n === 0) {
-  const insert = db.prepare('INSERT INTO users (id, name, email, phone, role, createdOn) VALUES (@id, @name, @email, @phone, @role, @createdOn)');
+  const insert = db.prepare('INSERT INTO users (id, name, email, phone, role, password, createdOn) VALUES (@id, @name, @email, @phone, @role, @password, @createdOn)');
+  const defaultHash = bcrypt.hashSync(DEFAULT_PASSWORD, 10);
   DEFAULT_AGENTS.forEach((name, i) => {
+    const email = `${name.toLowerCase().replace(/\s+/g, '.')}@emotorad.com`;
     insert.run({
       id: 'U' + String(i + 1).padStart(4, '0'),
       name,
-      email: '',
+      email,
       phone: '',
       role: name === 'Aditya Narayan' ? 'Admin' : 'Agent',
+      password: defaultHash,
       createdOn: Date.now(),
     });
   });
@@ -76,15 +90,20 @@ export function getUserByName(name) {
   return db.prepare('SELECT * FROM users WHERE name = ?').get(name) || null;
 }
 
+export function getUserByEmail(email) {
+  if (!email) return null;
+  return db.prepare('SELECT * FROM users WHERE LOWER(email) = LOWER(?)').get(email) || null;
+}
+
 export function insertUser(user) {
   db.prepare(`
-    INSERT INTO users (id, name, email, phone, role, createdOn)
-    VALUES (@id, @name, @email, @phone, @role, @createdOn)
+    INSERT INTO users (id, name, email, phone, role, password, createdOn)
+    VALUES (@id, @name, @email, @phone, @role, @password, @createdOn)
   `).run(user);
   return getUser(user.id);
 }
 
-const USER_PATCHABLE = ['name', 'email', 'phone', 'role'];
+const USER_PATCHABLE = ['name', 'email', 'phone', 'role', 'password'];
 
 export function patchUser(id, patch) {
   const existing = getUser(id);

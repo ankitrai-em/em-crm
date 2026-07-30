@@ -8,6 +8,8 @@ import { QuickAddModal } from './components/modals/QuickAddModal';
 import { AddLeadModal } from './components/modals/AddLeadModal';
 import { UsersPage } from './components/UsersPage';
 import { UserModal } from './components/modals/UserModal';
+import { ResetPasswordModal } from './components/modals/ResetPasswordModal';
+import { LoginPage } from './components/LoginPage';
 
 function Screen() {
   const { state } = useApp();
@@ -26,14 +28,22 @@ function AppShell() {
       <QuickAddModal />
       <AddLeadModal />
       <UserModal />
+      <ResetPasswordModal />
     </div>
   );
+}
+
+function Root() {
+  const { state } = useApp();
+  if (!state.authChecked) return null;
+  if (!state.currentUser) return <LoginPage />;
+  return <AppShell />;
 }
 
 export default function App() {
   return (
     <AppProvider>
-      <AppShell />
+      <Root />
     </AppProvider>
   );
 }

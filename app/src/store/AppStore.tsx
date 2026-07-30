@@ -1,8 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { ActivityEntry, FilterKey, Lead, Role, StageId, User } from '../types';
-import { CITY_LIST, CURRENT_AGENT, NOW, ROLE_LIST, ROLE_PERMISSIONS, SOURCE_LIST, STAGE_ORDER, getDisposition, getStage } from '../data/constants';
+import { CITY_LIST, NOW, ROLE_LIST, ROLE_PERMISSIONS, SOURCE_LIST, STAGE_ORDER, getDisposition, getStage } from '../data/constants';
 import { formatDateTime, parseDuration } from '../data/format';
-import { api } from '../lib/api';
+import { api, auth } from '../lib/api';
 import type { AppState } from './types';
 import { emptyCallForm, emptySaleForm, emptyTestRideForm, emptyUserForm, initialState } from './types';
 
@@ -12,18 +12,6 @@ function useProviderValue() {
   const [state, setStateRaw] = useState<AppState>(() => initialState([]));
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    api
-      .listLeads()
-      .then((leads) => setStateRaw((s) => ({ ...s, leads })))
-      .catch((err) => showToast('Could not reach API: ' + err.message));
-    api
-      .listUsers()
-      .then((users) => setStateRaw((s) => ({ ...s, users })))
-      .catch((err) => showToast('Could not load users: ' + err.message));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const setState = (patch: Patch) => {
     setStateRaw((s) => ({ ...s, ...(typeof patch === 'function' ? patch(s) : patch) }));
   };
@@ -32,6 +20,54 @@ function useProviderValue() {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     setState({ toast: msg });
     toastTimer.current = setTimeout(() => setState({ toast: '' }), 2400);
+  };
+
+  const loadWorkspace = (user: User) => {
+    setState({ currentUser: user, ownerFilter: [user.name] });
+    api.listLeads().then((leads) => setStateRaw((s) => ({ ...s, leads }))).catch((err) => showToast('Could not load leads: ' + err.message));
+    api.listUsers().then((users) => setStateRaw((s) => ({ ...s, users }))).catch((err) => showToast('Could not load users: ' + err.message));
+  };
+
+  useEffect(() => {
+    const token = auth.getToken();
+    if (!token) {
+      setState({ authChecked: true });
+      return;
+    }
+    api
+      .me()
+      .then((user) => {
+        loadWorkspace(user);
+        setState({ authChecked: true });
+      })
+      .catch(() => {
+        auth.clearToken();
+        setState({ authChecked: true });
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ---- auth ----
+  const updateLoginField = (field: 'loginEmail' | 'loginPassword', value: string) => setState({ [field]: value, loginError: '' } as Partial<AppState>);
+  const login = async () => {
+    const { loginEmail, loginPassword } = state;
+    if (!loginEmail || !loginPassword) {
+      setState({ loginError: 'Email and password are required' });
+      return;
+    }
+    setState({ loginBusy: true, loginError: '' });
+    try {
+      const { token, user } = await api.login(loginEmail, loginPassword);
+      auth.setToken(token);
+      loadWorkspace(user);
+      setState({ loginBusy: false, loginEmail: '', loginPassword: '', loginError: '' });
+    } catch (err) {
+      setState({ loginBusy: false, loginError: (err as Error).message });
+    }
+  };
+  const logout = () => {
+    auth.clearToken();
+    setStateRaw(() => ({ ...initialState([]), authChecked: true }));
   };
 
   const updateLead = async (id: string, patch: Partial<Lead>, activity: string | ActivityEntry) => {
@@ -114,7 +150,7 @@ function useProviderValue() {
     try {
       const lead = await api.createLead({
         name: quickName, phone: quickPhone, city: quickCity, pin: quickPin,
-        source: 'Quick Add', owner: CURRENT_AGENT,
+        source: 'Quick Add', owner: state.currentUser?.name || 'Unassigned',
       });
       setState((s) => ({ leads: [lead, ...s.leads], quickAddOpen: false, quickName: '', quickPhone: '', quickCity: '', quickPin: '' }));
       showToast('Lead added');
@@ -138,7 +174,7 @@ function useProviderValue() {
     try {
       lead = await api.createLead({
         name: addName, phone: addPhone, email: addEmail, city: addCity, pin: addPin,
-        source: addSource, campaign: addCampaign, owner: CURRENT_AGENT,
+        source: addSource, campaign: addCampaign, owner: state.currentUser?.name || 'Unassigned',
       });
     } catch (err) {
       showToast('Could not add lead: ' + (err as Error).message);
@@ -182,7 +218,7 @@ function useProviderValue() {
     }
     const entry: ActivityEntry = {
       ts: Date.now(), kind: 'call', connected: dispo.connected,
-      text: 'Outbound Call: ' + (dispo.connected ? 'Was called' : 'Did not answer a call') + ' by ' + CURRENT_AGENT + ' through ' + lead.phone + '.',
+      text: 'Outbound Call: ' + (dispo.connected ? 'Was called' : 'Did not answer a call') + ' by ' + (state.currentUser?.name || 'Unknown') + ' through ' + lead.phone + '.',
       duration: dispo.connected ? parseDuration(duration) : null,
       remarks: dispo.label + (remarks ? ' — ' + remarks : ''),
     };
@@ -270,7 +306,7 @@ function useProviderValue() {
       });
   }, [state]);
 
-  const myLeads = useMemo(() => state.leads.filter((l) => l.owner === CURRENT_AGENT), [state.leads]);
+  const myLeads = useMemo(() => state.leads.filter((l) => l.owner === state.currentUser?.name), [state.leads, state.currentUser]);
 
   const AGENT_LIST = useMemo(() => state.users.map((u) => u.name), [state.users]);
 
@@ -321,10 +357,28 @@ function useProviderValue() {
     }
   };
 
+  const openResetPassword = (id: string) => setState({ resetPwUserId: id, resetPwValue: '' });
+  const closeResetPassword = () => setState({ resetPwUserId: null, resetPwValue: '' });
+  const updateResetPasswordValue = (value: string) => setState({ resetPwValue: value });
+  const submitResetPassword = async () => {
+    const { resetPwUserId, resetPwValue } = state;
+    if (!resetPwUserId) return;
+    try {
+      await api.resetUserPassword(resetPwUserId, resetPwValue || '12345678');
+      setState({ resetPwUserId: null, resetPwValue: '' });
+      showToast('Password reset');
+    } catch (err) {
+      showToast('Could not reset password: ' + (err as Error).message);
+    }
+  };
+
   return {
     state,
     setState,
     showToast,
+    updateLoginField,
+    login,
+    logout,
     goDashboard,
     goLeads,
     goUsers,
@@ -377,6 +431,10 @@ function useProviderValue() {
     submitUserForm,
     setUserRole,
     removeUser,
+    openResetPassword,
+    closeResetPassword,
+    updateResetPasswordValue,
+    submitResetPassword,
     // static reference lists
     STAGE_ORDER,
     SOURCE_LIST,
