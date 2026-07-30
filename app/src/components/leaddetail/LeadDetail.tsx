@@ -77,6 +77,9 @@ export function LeadDetail() {
             <PropertyRow label="Created On" value={formatDate(lead.createdOn)} />
             <PropertyRow label="Lead Score" value={String(lead.leadScore)} />
             <PropertyRow label="Attempts" value={String(lead.attempts)} />
+            {Object.entries(lead.meta || {}).map(([key, value]) => (
+              <PropertyRow key={key} label={key} value={String(value)} />
+            ))}
           </div>
 
           <div style={{ background: 'var(--color-surface)', borderRadius: 'var(--radius-md)', padding: 22, display: 'flex', flexDirection: 'column', gap: 10 }}>

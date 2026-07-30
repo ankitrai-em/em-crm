@@ -56,6 +56,7 @@ export interface Lead {
   activity: ActivityEntry[];
   testRide: TestRide | null;
   sale: Sale | null;
+  meta: Record<string, string>;
 }
 
 export type FollowupTag = 'overdue' | 'today' | 'upcoming' | null;

@@ -28,21 +28,23 @@ const PORT = process.env.PORT || 8787;
 
 function normalizeIncomingLead(body) {
   const name = body.name || body.full_name || body.fullName || [body.first_name, body.last_name].filter(Boolean).join(' ') || null;
-  const phone = body.phone || body.phone_number || body.phoneNumber || body.mobile;
-  if (!phone) return { error: 'phone is required' };
+  const phone = body.phone || body.phone_number || body.phoneNumber || body.mobile || '';
+  const email = body.email || '';
+  if (!phone && !email) return { error: 'phone or email is required' };
 
   const source = body.source || body.lead_source || 'Webhook';
+  const campaign = body.campaign || body.campaign_name || body.sourceMedium || body.source_medium || '—';
   const now = Date.now();
   return {
     lead: {
       id: 'L' + nanoid(6).toUpperCase(),
       name,
       phone: String(phone),
-      email: body.email || '',
+      email,
       city: body.city || '—',
       pin: body.pin || body.pincode || body.zip || '—',
       source,
-      campaign: body.campaign || body.campaign_name || '—',
+      campaign,
       createdOn: now,
       owner: body.owner || 'Unassigned',
       stage: 1,
@@ -54,6 +56,9 @@ function normalizeIncomingLead(body) {
       activity: [{ ts: now, kind: 'note', text: `Lead captured via ${source}` }],
       testRide: null,
       sale: null,
+      // Freeform bag for source-specific attributes (EBike model, budget, gclid, company, etc.)
+      // that don't map to a first-class column. Shown read-only on the lead detail page.
+      meta: body.meta && typeof body.meta === 'object' && !Array.isArray(body.meta) ? body.meta : {},
     },
   };
 }

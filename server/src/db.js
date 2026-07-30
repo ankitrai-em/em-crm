@@ -58,6 +58,11 @@ db.exec(`
   );
 `);
 
+const leadColumns = db.prepare('PRAGMA table_info(leads)').all().map((c) => c.name);
+if (!leadColumns.includes('meta')) {
+  db.exec("ALTER TABLE leads ADD COLUMN meta TEXT NOT NULL DEFAULT '{}'");
+}
+
 export function listUsers() {
   return db.prepare('SELECT * FROM users ORDER BY createdOn ASC').all();
 }
@@ -109,6 +114,7 @@ function rowToLead(row) {
     activity: JSON.parse(row.activity || '[]'),
     testRide: row.testRide ? JSON.parse(row.testRide) : null,
     sale: row.sale ? JSON.parse(row.sale) : null,
+    meta: row.meta ? JSON.parse(row.meta) : {},
   };
 }
 
@@ -123,19 +129,20 @@ export function getLead(id) {
 
 export function insertLead(lead) {
   db.prepare(`
-    INSERT INTO leads (id, name, phone, email, city, pin, source, campaign, createdOn, owner, stage, leadScore, followupAt, taskDate, reTriggered, attempts, activity, testRide, sale)
-    VALUES (@id, @name, @phone, @email, @city, @pin, @source, @campaign, @createdOn, @owner, @stage, @leadScore, @followupAt, @taskDate, @reTriggered, @attempts, @activity, @testRide, @sale)
+    INSERT INTO leads (id, name, phone, email, city, pin, source, campaign, createdOn, owner, stage, leadScore, followupAt, taskDate, reTriggered, attempts, activity, testRide, sale, meta)
+    VALUES (@id, @name, @phone, @email, @city, @pin, @source, @campaign, @createdOn, @owner, @stage, @leadScore, @followupAt, @taskDate, @reTriggered, @attempts, @activity, @testRide, @sale, @meta)
   `).run({
     ...lead,
     reTriggered: lead.reTriggered ? 1 : 0,
     activity: JSON.stringify(lead.activity || []),
     testRide: lead.testRide ? JSON.stringify(lead.testRide) : null,
     sale: lead.sale ? JSON.stringify(lead.sale) : null,
+    meta: JSON.stringify(lead.meta || {}),
   });
   return getLead(lead.id);
 }
 
-const PATCHABLE = ['name', 'phone', 'email', 'city', 'pin', 'source', 'campaign', 'owner', 'stage', 'leadScore', 'followupAt', 'taskDate', 'reTriggered', 'attempts', 'testRide', 'sale'];
+const PATCHABLE = ['name', 'phone', 'email', 'city', 'pin', 'source', 'campaign', 'owner', 'stage', 'leadScore', 'followupAt', 'taskDate', 'reTriggered', 'attempts', 'testRide', 'sale', 'meta'];
 
 export function patchLead(id, patch, newActivityEntry) {
   const existing = getLead(id);
@@ -152,6 +159,7 @@ export function patchLead(id, patch, newActivityEntry) {
       let value = merged[key];
       if (key === 'reTriggered') value = value ? 1 : 0;
       if ((key === 'testRide' || key === 'sale') && value != null) value = JSON.stringify(value);
+      if (key === 'meta') value = JSON.stringify(value || {});
       params[key] = value ?? null;
     }
   }
