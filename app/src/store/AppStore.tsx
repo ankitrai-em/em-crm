@@ -73,6 +73,19 @@ function useProviderValue() {
     setStateRaw(() => ({ ...initialState([]), authChecked: true }));
   };
 
+  // The 11:59 PM daily reset invalidates every outstanding session token server-side;
+  // api.ts detects the resulting 401 and fires this event so an open tab drops back to
+  // the login screen instead of just failing every request with a cryptic error.
+  useEffect(() => {
+    const onExpired = () => {
+      showToast('Session expired, please log in again');
+      logout();
+    };
+    window.addEventListener('auth:expired', onExpired);
+    return () => window.removeEventListener('auth:expired', onExpired);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const updateLead = async (id: string, patch: Partial<Lead>, activity: string | ActivityEntry) => {
     const activityField = typeof activity === 'string' ? { activityNote: activity } : { activityEntry: activity };
     try {
@@ -432,6 +445,14 @@ function useProviderValue() {
       showToast('Could not update role: ' + (err as Error).message);
     }
   };
+  const toggleUserActive = async (id: string, active: boolean) => {
+    try {
+      const updated = await api.setUserActive(id, active);
+      setState((s) => ({ users: s.users.map((u) => (u.id === id ? updated : u)) }));
+    } catch (err) {
+      showToast('Could not update eligibility: ' + (err as Error).message);
+    }
+  };
   const removeUser = async (id: string) => {
     try {
       await api.deleteUser(id);
@@ -605,6 +626,7 @@ function useProviderValue() {
     updateUserForm,
     submitUserForm,
     setUserRole,
+    toggleUserActive,
     removeUser,
     openResetPassword,
     closeResetPassword,

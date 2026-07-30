@@ -16,6 +16,7 @@ import {
   listAccessories, insertAccessory, deleteAccessory,
 } from './db.js';
 import { placeCall } from './telephony.js';
+import { istParts, isWithinAllocationWindow, allocateLeadToNextUser, allocatePoolLeads, startAllocationScheduler } from './allocation.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = process.env.UPLOADS_DIR ? path.resolve(process.env.UPLOADS_DIR) : path.join(__dirname, '..', 'uploads');
@@ -43,8 +44,8 @@ const PORT = process.env.PORT || 8787;
 
 function sanitizeUser(user) {
   if (!user) return user;
-  const { password, ...safe } = user;
-  return safe;
+  const { password, tokenVersion, ...safe } = user;
+  return { ...safe, active: !!safe.active };
 }
 
 function logAudit(req, action, target, details) {
@@ -67,6 +68,12 @@ function requireAuth(req, res, next) {
   if (!token) return res.status(401).json({ error: 'Not logged in' });
   try {
     const decoded = jwt.verify(token, EFFECTIVE_JWT_SECRET);
+    // tokenVersion is bumped for everyone at the 11:59 PM reset, which invalidates all
+    // outstanding tokens even though JWTs are otherwise stateless.
+    const user = getUser(decoded.sub);
+    if (!user || user.tokenVersion !== decoded.tokenVersion) {
+      return res.status(401).json({ error: 'Session expired, please log in again' });
+    }
     req.authUser = decoded;
     next();
   } catch {
@@ -79,15 +86,29 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+function requireAdminOrManager(req, res, next) {
+  if (!['Admin', 'Manager'].includes(req.authUser?.role)) return res.status(403).json({ error: 'Admin or Manager access required' });
+  next();
+}
+
 // ---- auth ----
 
 app.post('/api/auth/login', (req, res) => {
   const { email, password } = req.body || {};
-  const user = getUserByEmail(email);
+  let user = getUserByEmail(email);
   if (!user || !bcrypt.compareSync(password || '', user.password)) {
     return res.status(401).json({ error: 'Invalid email or password' });
   }
-  const token = jwt.sign({ sub: user.id, role: user.role }, EFFECTIVE_JWT_SECRET, { expiresIn: '7d' });
+
+  // Eligibility for lead allocation: the FIRST login of the day decides Active/Inactive
+  // (before 11:00 AM IST = Active). Later logins the same day don't re-evaluate this,
+  // so a user who's already Active doesn't get flipped back by logging in again at 3pm.
+  const { dateString, hour } = istParts();
+  if (user.lastLoginDate !== dateString) {
+    user = patchUser(user.id, { active: hour < 11, lastLoginDate: dateString });
+  }
+
+  const token = jwt.sign({ sub: user.id, role: user.role, tokenVersion: user.tokenVersion }, EFFECTIVE_JWT_SECRET, { expiresIn: '7d' });
   res.json({ token, user: sanitizeUser(user) });
 });
 
@@ -154,10 +175,17 @@ app.post('/api/leads', requireAuth, (req, res) => {
 
 // Generic intake endpoint for external lead sources (ad platforms, website forms, CRMs).
 // Point any POST webhook here; field names are normalized on a best-effort basis.
+// Real-time round-robin allocation applies only to leads that come in unassigned and
+// only during the 11:00 AM - 7:00 PM IST window; outside that window they sit in the
+// Lead Pool until the next allocation run (11:00 AM daily).
 app.post('/api/leads/webhook', (req, res) => {
   const { lead, error } = normalizeIncomingLead(req.body || {});
   if (error) return res.status(400).json({ error });
-  res.status(201).json(insertLead(lead));
+  let inserted = insertLead(lead);
+  if (inserted.owner === 'Unassigned' && isWithinAllocationWindow()) {
+    inserted = allocateLeadToNextUser(inserted.id) || inserted;
+  }
+  res.status(201).json(inserted);
 });
 
 // Partial update: stage changes, follow-ups, test rides, sales, manual edits.
@@ -387,7 +415,7 @@ app.post('/api/users', requireAuth, requireAdmin, (req, res) => {
 });
 
 app.patch('/api/users/:id', requireAuth, requireAdmin, (req, res) => {
-  const { password, ...rest } = req.body || {};
+  const { password, active, tokenVersion, lastLoginDate, ...rest } = req.body || {};
   const before = getUser(req.params.id);
   const updated = patchUser(req.params.id, rest);
   if (!updated) return res.status(404).json({ error: 'not found' });
@@ -408,6 +436,17 @@ app.post('/api/users/:id/reset-password', requireAuth, requireAdmin, (req, res) 
   res.json(sanitizeUser(updated));
 });
 
+// Lead allocation eligibility. Auto-set at login (see /api/auth/login); Admin/Manager
+// can override manually at any time, per the lead allocation spec.
+app.patch('/api/users/:id/active', requireAuth, requireAdminOrManager, (req, res) => {
+  const target = getUser(req.params.id);
+  if (!target) return res.status(404).json({ error: 'not found' });
+  const active = !!req.body?.active;
+  const updated = patchUser(req.params.id, { active });
+  logAudit(req, 'user.active_toggled', target, { active });
+  res.json(sanitizeUser(updated));
+});
+
 app.delete('/api/users/:id', requireAuth, requireAdmin, (req, res) => {
   const target = getUser(req.params.id);
   if (!target) return res.status(404).json({ error: 'not found' });
@@ -421,6 +460,28 @@ app.delete('/api/users/:id', requireAuth, requireAdmin, (req, res) => {
 app.get('/api/audit-log', requireAuth, requireAdmin, (_req, res) => {
   res.json(listAuditLog());
 });
+
+// ---- lead allocation ----
+
+app.get('/api/allocation/status', requireAuth, requireAdminOrManager, (_req, res) => {
+  const { hour } = istParts();
+  res.json({
+    poolCount: listLeads().filter((l) => l.owner === 'Unassigned').length,
+    activeUserCount: listUsers().filter((u) => u.active).length,
+    withinAllocationWindow: isWithinAllocationWindow(),
+    istHour: hour,
+  });
+});
+
+// Manual override: force-run the pool allocation right now (normally happens automatically
+// at 11:00 AM IST). Admin-only since it affects every unassigned lead at once.
+app.post('/api/allocation/run-pool', requireAuth, requireAdmin, (req, res) => {
+  const count = allocatePoolLeads();
+  logAudit(req, 'allocation.pool_run_manual', null, { count });
+  res.json({ count });
+});
+
+startAllocationScheduler();
 
 app.listen(PORT, () => {
   console.log(`Lead API listening on http://localhost:${PORT}`);

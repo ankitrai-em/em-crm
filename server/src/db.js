@@ -29,6 +29,15 @@ if (!userColumns.includes('password')) {
   const defaultHash = bcrypt.hashSync(DEFAULT_PASSWORD, 10);
   db.prepare("UPDATE users SET password = ? WHERE password = ''").run(defaultHash);
 }
+if (!userColumns.includes('active')) {
+  db.exec('ALTER TABLE users ADD COLUMN active INTEGER NOT NULL DEFAULT 0');
+}
+if (!userColumns.includes('tokenVersion')) {
+  db.exec('ALTER TABLE users ADD COLUMN tokenVersion INTEGER NOT NULL DEFAULT 0');
+}
+if (!userColumns.includes('lastLoginDate')) {
+  db.exec("ALTER TABLE users ADD COLUMN lastLoginDate TEXT NOT NULL DEFAULT ''");
+}
 
 const DEFAULT_AGENTS = ['Aditya Narayan', 'Shreya Raj', 'Preeti Vankhede', 'Deep Malakar', 'Dip Roy', 'Shweta Madel', 'Yash Pawar'];
 if (db.prepare('SELECT COUNT(*) as n FROM users').get().n === 0) {
@@ -195,7 +204,7 @@ export function insertUser(user) {
   return getUser(user.id);
 }
 
-const USER_PATCHABLE = ['name', 'email', 'phone', 'role', 'password'];
+const USER_PATCHABLE = ['name', 'email', 'phone', 'role', 'password', 'active', 'tokenVersion', 'lastLoginDate'];
 
 export function patchUser(id, patch) {
   const existing = getUser(id);
@@ -206,7 +215,9 @@ export function patchUser(id, patch) {
   for (const key of USER_PATCHABLE) {
     if (key in merged) {
       sets.push(`${key} = @${key}`);
-      params[key] = merged[key] ?? null;
+      let value = merged[key];
+      if (key === 'active') value = value ? 1 : 0;
+      params[key] = value ?? null;
     }
   }
   if (sets.length) db.prepare(`UPDATE users SET ${sets.join(', ')} WHERE id = @id`).run(params);
@@ -215,6 +226,25 @@ export function patchUser(id, patch) {
 
 export function deleteUser(id) {
   db.prepare('DELETE FROM users WHERE id = ?').run(id);
+}
+
+// ---- lead allocation (round robin) ----
+
+// Eligible users, in a stable order so the round-robin sequence is deterministic.
+export function listActiveUsers() {
+  return db.prepare('SELECT * FROM users WHERE active = 1 ORDER BY createdOn ASC, id ASC').all();
+}
+
+export function bumpAllTokenVersions() {
+  db.prepare('UPDATE users SET tokenVersion = tokenVersion + 1').run();
+}
+
+export function resetAllActive() {
+  db.prepare('UPDATE users SET active = 0').run();
+}
+
+export function listUnallocatedLeadIds() {
+  return db.prepare("SELECT id, createdOn FROM leads WHERE owner = 'Unassigned' ORDER BY createdOn ASC").all();
 }
 
 function rowToLead(row) {

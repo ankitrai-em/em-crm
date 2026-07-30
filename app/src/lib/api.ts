@@ -1,4 +1,4 @@
-import type { Accessory, ActivityEntry, AuditLogEntry, Dealer, Disposition, InventoryItem, Lead, Role, Sale, SaleAuditRow, TestRide, User } from '../types';
+import type { Accessory, ActivityEntry, AllocationStatus, AuditLogEntry, Dealer, Disposition, InventoryItem, Lead, Role, Sale, SaleAuditRow, TestRide, User } from '../types';
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787';
 const TOKEN_KEY = 'emcrm_token';
@@ -21,6 +21,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
+    // A 401 on a request that carried a token means the session itself is dead (e.g. the
+    // 11:59 PM daily reset bumped everyone's token version) — not a login failure, which
+    // never has a token to begin with. Tell the app to drop back to the login screen.
+    if (res.status === 401 && token) {
+      auth.clearToken();
+      window.dispatchEvent(new Event('auth:expired'));
+    }
     throw new Error(body.error || `Request to ${path} failed (${res.status})`);
   }
   return res.json();
@@ -166,6 +173,10 @@ export const api = {
   getSales: () => request<SaleAuditRow[]>('/api/sales'),
   auditSale: (leadId: string, auditStatus: 'successful' | 'rejected', auditNote: string) =>
     request<Lead>(`/api/leads/${leadId}/sale-audit`, { method: 'PATCH', body: JSON.stringify({ auditStatus, auditNote }) }),
+
+  setUserActive: (id: string, active: boolean) => request<User>(`/api/users/${id}/active`, { method: 'PATCH', body: JSON.stringify({ active }) }),
+  getAllocationStatus: () => request<AllocationStatus>('/api/allocation/status'),
+  runPoolAllocation: () => request<{ count: number }>('/api/allocation/run-pool', { method: 'POST' }),
 };
 
 export const apiBaseUrl = BASE_URL;

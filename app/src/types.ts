@@ -138,6 +138,15 @@ export interface User {
   phone: string;
   role: Role;
   createdOn: number;
+  active: boolean;
+  lastLoginDate: string;
+}
+
+export interface AllocationStatus {
+  poolCount: number;
+  activeUserCount: number;
+  withinAllocationWindow: boolean;
+  istHour: number;
 }
 
 export interface UserForm {
