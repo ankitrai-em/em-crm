@@ -10,12 +10,14 @@ import { UsersPage } from './components/UsersPage';
 import { UserModal } from './components/modals/UserModal';
 import { ResetPasswordModal } from './components/modals/ResetPasswordModal';
 import { LoginPage } from './components/LoginPage';
+import { IntegrationsPage } from './components/IntegrationsPage';
 
 function Screen() {
   const { state } = useApp();
   if (state.view === 'dashboard') return <Dashboard />;
   if (state.view === 'leads') return <LeadsGrid />;
   if (state.view === 'users') return <UsersPage />;
+  if (state.view === 'integrations') return <IntegrationsPage />;
   return <LeadDetail />;
 }
 

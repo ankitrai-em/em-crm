@@ -84,6 +84,7 @@ function useProviderValue() {
   const goDashboard = () => setState({ view: 'dashboard' });
   const goLeads = () => setState({ view: 'leads' });
   const goUsers = () => setState({ view: 'users' });
+  const goIntegrations = () => setState({ view: 'integrations' });
   const backToLeads = () => setState({ view: 'leads' });
   const openLead = (id: string) =>
     setState({
@@ -382,6 +383,7 @@ function useProviderValue() {
     goDashboard,
     goLeads,
     goUsers,
+    goIntegrations,
     backToLeads,
     openLead,
     setSearch,

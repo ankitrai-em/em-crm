@@ -2,15 +2,17 @@ import { useApp } from '../store/AppStore';
 import { initials } from '../data/format';
 
 export function Nav() {
-  const { state, goDashboard, goLeads, goUsers, logout } = useApp();
+  const { state, goDashboard, goLeads, goUsers, goIntegrations, logout } = useApp();
   const view = state.view;
   const user = state.currentUser;
   const dashboardColor = view === 'dashboard' ? 'var(--color-accent-700)' : 'var(--color-text)';
   const leadsColor = view === 'leads' || view === 'detail' ? 'var(--color-accent-700)' : 'var(--color-text)';
   const usersColor = view === 'users' ? 'var(--color-accent-700)' : 'var(--color-text)';
+  const integrationsColor = view === 'integrations' ? 'var(--color-accent-700)' : 'var(--color-text)';
   const dashboardWeight = view === 'dashboard' ? 600 : 400;
   const leadsWeight = view === 'leads' || view === 'detail' ? 600 : 400;
   const usersWeight = view === 'users' ? 600 : 400;
+  const integrationsWeight = view === 'integrations' ? 600 : 400;
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 36, padding: '20px 48px' }}>
@@ -30,6 +32,11 @@ export function Nav() {
         <a href="#" style={{ fontSize: 14, color: usersColor, fontWeight: usersWeight }} onClick={(e) => { e.preventDefault(); goUsers(); }}>
           Users
         </a>
+        {user?.role === 'Admin' && (
+          <a href="#" style={{ fontSize: 14, color: integrationsColor, fontWeight: integrationsWeight }} onClick={(e) => { e.preventDefault(); goIntegrations(); }}>
+            Integrations
+          </a>
+        )}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
         <div

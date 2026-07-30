@@ -77,6 +77,26 @@ if (!leadColumns.includes('meta')) {
   db.exec("ALTER TABLE leads ADD COLUMN meta TEXT NOT NULL DEFAULT '{}'");
 }
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
+`);
+
+export function getSetting(key) {
+  const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
+  return row ? JSON.parse(row.value) : null;
+}
+
+export function setSetting(key, value) {
+  db.prepare(`
+    INSERT INTO settings (key, value) VALUES (@key, @value)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+  `).run({ key, value: JSON.stringify(value) });
+  return getSetting(key);
+}
+
 export function listUsers() {
   return db.prepare('SELECT * FROM users ORDER BY createdOn ASC').all();
 }

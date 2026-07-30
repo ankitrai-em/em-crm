@@ -7,7 +7,7 @@ import multer from 'multer';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { nanoid } from 'nanoid';
-import { listLeads, getLead, insertLead, patchLead, listUsers, getUser, getUserByName, getUserByEmail, insertUser, patchUser, deleteUser, DEFAULT_PASSWORD } from './db.js';
+import { listLeads, getLead, insertLead, patchLead, listUsers, getUser, getUserByName, getUserByEmail, insertUser, patchUser, deleteUser, DEFAULT_PASSWORD, getSetting, setSetting } from './db.js';
 import { placeCall } from './telephony.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -168,7 +168,7 @@ app.post('/api/leads/:id/call', requireAuth, async (req, res) => {
   }
 
   try {
-    const result = await placeCall({ toNumber: lead.phone, agentNumber, leadId: lead.id });
+    const result = await placeCall({ toNumber: lead.phone, agentNumber, leadId: lead.id }, getSetting('telephony'));
     const updated = patchLead(lead.id, {}, {
       ts: Date.now(),
       kind: 'call',
@@ -185,6 +185,25 @@ app.post('/api/leads/:id/call', requireAuth, async (req, res) => {
 app.post('/api/uploads', requireAuth, upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'file is required' });
   res.status(201).json({ fileName: req.file.filename, originalName: req.file.originalname, url: `/uploads/${req.file.filename}` });
+});
+
+// ---- integrations ----
+// Admin-only. Currently just telephony (click-to-call); more providers can be added
+// as additional keys the same way (getSetting/setSetting are a generic key-value store).
+
+app.get('/api/integrations/telephony', requireAuth, requireAdmin, (_req, res) => {
+  res.json(getSetting('telephony') || { provider: 'mock', sarv: {}, twilio: {}, exotel: {} });
+});
+
+app.put('/api/integrations/telephony', requireAuth, requireAdmin, (req, res) => {
+  const { provider, sarv, twilio, exotel } = req.body || {};
+  const saved = setSetting('telephony', {
+    provider: provider || 'mock',
+    sarv: sarv || {},
+    twilio: twilio || {},
+    exotel: exotel || {},
+  });
+  res.json(saved);
 });
 
 // ---- users ----

@@ -82,6 +82,13 @@ export interface LoginResult {
   user: User;
 }
 
+export interface TelephonyConfig {
+  provider: 'mock' | 'sarv' | 'twilio' | 'exotel';
+  sarv: { userId?: string; token?: string };
+  twilio: { accountSid?: string; authToken?: string; fromNumber?: string; twimlUrl?: string };
+  exotel: { sid?: string; apiKey?: string; apiToken?: string; callerId?: string; agentNumber?: string; subdomain?: string };
+}
+
 export const api = {
   login: (email: string, password: string) => request<LoginResult>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   me: () => request<User>('/api/auth/me'),
@@ -96,6 +103,9 @@ export const api = {
   patchUser: (id: string, patch: UserPatch) => request<User>(`/api/users/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   deleteUser: (id: string) => request<{ ok: true }>(`/api/users/${id}`, { method: 'DELETE' }),
   resetUserPassword: (id: string, password: string) => request<User>(`/api/users/${id}/reset-password`, { method: 'POST', body: JSON.stringify({ password }) }),
+
+  getTelephonyIntegration: () => request<TelephonyConfig>('/api/integrations/telephony'),
+  saveTelephonyIntegration: (config: TelephonyConfig) => request<TelephonyConfig>('/api/integrations/telephony', { method: 'PUT', body: JSON.stringify(config) }),
 
   uploadInvoice: async (file: File): Promise<UploadResult> => {
     const token = auth.getToken();

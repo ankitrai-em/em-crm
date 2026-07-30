@@ -88,7 +88,7 @@ export interface SaleForm {
 
 export type FilterKey = 'stage' | 'source' | 'city' | 'owner' | 'created' | 'followup' | 'task';
 
-export type View = 'dashboard' | 'leads' | 'detail' | 'users';
+export type View = 'dashboard' | 'leads' | 'detail' | 'users' | 'integrations';
 
 export type Role = 'Admin' | 'Manager' | 'Agent';
 
