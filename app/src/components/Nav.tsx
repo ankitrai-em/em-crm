@@ -4,7 +4,7 @@ import { initials } from '../data/format';
 import type { View } from '../types';
 
 export function Nav() {
-  const { state, goDashboard, goLeads, goUsers, goInventory, goAccessories, goIntegrations, goDispositions, goDealers, goAuditLog, goSalesAudit, logout } = useApp();
+  const { state, goDashboard, goLeads, goImportLeads, goUsers, goInventory, goAccessories, goIntegrations, goDispositions, goDealers, goAuditLog, goSalesAudit, logout } = useApp();
   const [adminOpen, setAdminOpen] = useState(false);
   const view = state.view;
   const user = state.currentUser;
@@ -28,6 +28,9 @@ export function Nav() {
         </a>
         <a href="#" style={linkStyle(view === 'leads' || view === 'detail')} onClick={(e) => { e.preventDefault(); goLeads(); }}>
           Leads
+        </a>
+        <a href="#" style={linkStyle(view === 'import-leads')} onClick={(e) => { e.preventDefault(); goImportLeads(); }}>
+          Import Leads
         </a>
         <a href="#" style={linkStyle(view === 'users')} onClick={(e) => { e.preventDefault(); goUsers(); }}>
           Users

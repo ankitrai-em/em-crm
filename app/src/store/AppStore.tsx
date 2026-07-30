@@ -98,10 +98,20 @@ function useProviderValue() {
     }
   };
 
+  const refreshLeads = async () => {
+    try {
+      const leads = await api.listLeads();
+      setState({ leads });
+    } catch (err) {
+      showToast('Could not refresh leads: ' + (err as Error).message);
+    }
+  };
+
   // ---- navigation ----
   const goDashboard = () => setState({ view: 'dashboard' });
   const goLeads = () => setState({ view: 'leads' });
   const goUsers = () => setState({ view: 'users' });
+  const goImportLeads = () => setState({ view: 'import-leads' });
   const goIntegrations = () => setState({ view: 'integrations' });
   const goAuditLog = () => setState({ view: 'audit-log' });
   const goDealers = () => setState({ view: 'dealers' });
@@ -565,6 +575,7 @@ function useProviderValue() {
     goDashboard,
     goLeads,
     goUsers,
+    goImportLeads,
     goIntegrations,
     goAuditLog,
     goDealers,
@@ -618,6 +629,7 @@ function useProviderValue() {
     saveSale,
     manualStageChange,
     auditSale,
+    refreshLeads,
     filteredLeads,
     myLeads,
     openAddUser,

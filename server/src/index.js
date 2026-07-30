@@ -40,6 +40,9 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 },
 });
 
+// Used for CSV imports (leads, dealers) — parsed in memory, never written to disk.
+const csvUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
+
 const PORT = process.env.PORT || 8787;
 
 function sanitizeUser(user) {
@@ -173,6 +176,80 @@ app.post('/api/leads', requireAuth, (req, res) => {
   res.status(201).json(insertLead(lead));
 });
 
+// ---- bulk lead import from CSV ----
+// Columns mirror the Leads grid's own fields. Phone is the only required column;
+// everything else is optional. Reuses the exact column names from LEAD_IMPORT_HEADERS
+// below (not the fuzzy alias-matching in normalizeIncomingLead) since we control the
+// template ourselves via the sample-file download.
+
+const LEAD_IMPORT_HEADERS = ['Name', 'Phone', 'Email', 'City', 'Pin', 'Source', 'Campaign', 'Owner'];
+
+function leadRowFromCsv(row, ownerFallback) {
+  const phone = (row['Phone'] || '').trim();
+  if (!phone) return { error: 'missing phone number' };
+  const source = row['Source']?.trim() || 'CSV Import';
+  const now = Date.now();
+  return {
+    lead: {
+      id: 'L' + nanoid(6).toUpperCase(),
+      name: row['Name']?.trim() || null,
+      phone,
+      email: row['Email']?.trim() || '',
+      city: row['City']?.trim() || '—',
+      pin: row['Pin']?.trim() || '—',
+      source,
+      campaign: row['Campaign']?.trim() || '—',
+      createdOn: now,
+      owner: row['Owner']?.trim() || ownerFallback,
+      stage: 1,
+      leadScore: 0,
+      followupAt: null,
+      taskDate: now + 86400000,
+      reTriggered: false,
+      attempts: 0,
+      activity: [{ ts: now, kind: 'note', text: `Lead captured via ${source}` }],
+      testRide: null,
+      sale: null,
+      meta: {},
+    },
+  };
+}
+
+// No auth required: it's a blank template with no real data, and a plain <a href download>
+// link can't attach an Authorization header anyway.
+app.get('/api/leads/import/sample', (_req, res) => {
+  const csv = [
+    LEAD_IMPORT_HEADERS.join(','),
+    'Jane Doe,9876543210,jane@example.com,Pune,411001,Website,Monsoon Offer,',
+  ].join('\n');
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', 'attachment; filename="lead-import-sample.csv"');
+  res.send(csv);
+});
+
+app.post('/api/leads/import', requireAuth, csvUpload.single('file'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'file is required' });
+  let records;
+  try {
+    records = parseCsv(req.file.buffer, { columns: true, skip_empty_lines: true, trim: true, relax_column_count: true });
+  } catch (err) {
+    return res.status(400).json({ error: 'Could not parse CSV: ' + err.message });
+  }
+  const actor = getUser(req.authUser.sub);
+  const errors = [];
+  let created = 0;
+  records.forEach((row, i) => {
+    const { lead, error } = leadRowFromCsv(row, actor?.name || 'Unassigned');
+    if (error) {
+      errors.push({ row: i + 2, reason: error }); // +2: 1-indexed, plus header row
+      return;
+    }
+    insertLead(lead);
+    created++;
+  });
+  res.status(201).json({ created, errors });
+});
+
 // Generic intake endpoint for external lead sources (ad platforms, website forms, CRMs).
 // Point any POST webhook here; field names are normalized on a best-effort basis.
 // Real-time round-robin allocation applies only to leads that come in unassigned and
@@ -271,8 +348,6 @@ app.put('/api/settings/dispositions', requireAuth, requireAdmin, (req, res) => {
 // ---- dealers (test ride locations) ----
 // Admin uploads a CSV (same columns as the franchise/dealer export) which fully replaces
 // the dealer list. Everyone logged in can browse states/cities/dealers to book a test ride.
-
-const csvUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
 app.get('/api/dealers/states', requireAuth, (_req, res) => {
   res.json(listDealerStates());

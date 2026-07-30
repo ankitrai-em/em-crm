@@ -127,7 +127,7 @@ export interface ContactEditForm {
 
 export type FilterKey = 'stage' | 'source' | 'city' | 'owner' | 'created' | 'followup' | 'task';
 
-export type View = 'dashboard' | 'leads' | 'detail' | 'users' | 'integrations' | 'audit-log' | 'dealers' | 'inventory' | 'accessories' | 'sales-audit' | 'dispositions';
+export type View = 'dashboard' | 'leads' | 'detail' | 'users' | 'integrations' | 'audit-log' | 'dealers' | 'inventory' | 'accessories' | 'sales-audit' | 'dispositions' | 'import-leads';
 
 export type Role = 'Admin' | 'Manager' | 'Agent';
 
@@ -147,6 +147,11 @@ export interface AllocationStatus {
   activeUserCount: number;
   withinAllocationWindow: boolean;
   istHour: number;
+}
+
+export interface LeadImportResult {
+  created: number;
+  errors: { row: number; reason: string }[];
 }
 
 export interface UserForm {

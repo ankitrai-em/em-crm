@@ -1,4 +1,4 @@
-import type { Accessory, ActivityEntry, AllocationStatus, AuditLogEntry, Dealer, Disposition, InventoryItem, Lead, Role, Sale, SaleAuditRow, TestRide, User } from '../types';
+import type { Accessory, ActivityEntry, AllocationStatus, AuditLogEntry, Dealer, Disposition, InventoryItem, Lead, LeadImportResult, Role, Sale, SaleAuditRow, TestRide, User } from '../types';
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787';
 const TOKEN_KEY = 'emcrm_token';
@@ -110,6 +110,21 @@ export const api = {
   createLead: (input: NewLeadInput) => request<Lead>('/api/leads', { method: 'POST', body: JSON.stringify(input) }),
   patchLead: (id: string, patch: LeadPatch) => request<Lead>(`/api/leads/${id}`, { method: 'PATCH', body: JSON.stringify(patch) }),
   callLead: (id: string) => request<CallResult>(`/api/leads/${id}/call`, { method: 'POST' }),
+  importLeads: async (file: File): Promise<LeadImportResult> => {
+    const token = auth.getToken();
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${BASE_URL}/api/leads/import`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      body: formData,
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || `Import failed (${res.status})`);
+    }
+    return res.json();
+  },
 
   listUsers: () => request<User[]>('/api/users'),
   createUser: (input: NewUserInput) => request<User>('/api/users', { method: 'POST', body: JSON.stringify(input) }),

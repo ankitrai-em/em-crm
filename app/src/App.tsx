@@ -17,11 +17,13 @@ import { InventoryPage } from './components/InventoryPage';
 import { AccessoriesPage } from './components/AccessoriesPage';
 import { SalesAuditPage } from './components/SalesAuditPage';
 import { DispositionsPage } from './components/DispositionsPage';
+import { LeadImportPage } from './components/LeadImportPage';
 
 function Screen() {
   const { state } = useApp();
   if (state.view === 'dashboard') return <Dashboard />;
   if (state.view === 'leads') return <LeadsGrid />;
+  if (state.view === 'import-leads') return <LeadImportPage />;
   if (state.view === 'users') return <UsersPage />;
   if (state.view === 'integrations') return <IntegrationsPage />;
   if (state.view === 'audit-log') return <AuditLogPage />;
