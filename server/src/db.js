@@ -57,6 +57,13 @@ if (db.prepare('SELECT COUNT(*) as n FROM users').get().n === 0) {
   });
 }
 
+// Backfills email on databases created before login existed (seed users originally had
+// email: ''), since the fresh-DB seeding above only runs when the users table is empty.
+const backfillEmail = db.prepare("UPDATE users SET email = ? WHERE id = ? AND (email IS NULL OR email = '')");
+DEFAULT_AGENTS.forEach((name, i) => {
+  backfillEmail.run(`${name.toLowerCase().replace(/\s+/g, '.')}@emotorad.com`, 'U' + String(i + 1).padStart(4, '0'));
+});
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS leads (
     id TEXT PRIMARY KEY,
