@@ -8,6 +8,9 @@ export function UsersPage() {
   const isAdmin = state.currentUser?.role === 'Admin';
   const canToggleActive = isAdmin || state.currentUser?.role === 'Manager';
   const userById = (id: string | null) => state.users.find((u) => u.id === id);
+  // Matches the backend's IST dateString exactly, so "logged in today" here means the same
+  // thing it means for allocation eligibility — regardless of the admin's own browser timezone.
+  const todayIST = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
   const [allocation, setAllocation] = useState<AllocationStatus | null>(null);
 
   const loadAllocation = () => {
@@ -69,7 +72,7 @@ export function UsersPage() {
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, marginBottom: 36 }}>
         <thead>
           <tr>
-            {['Name', 'Email', 'Phone', 'Role', 'Manager', 'In Pool', 'Active', ''].map((h) => (
+            {['Name', 'Email', 'Phone', 'Role', 'Manager', 'Last Login (IST)', 'In Pool', 'Active', ''].map((h) => (
               <th key={h} style={headStyle}>
                 {h}
               </th>
@@ -100,6 +103,16 @@ export function UsersPage() {
                 )}
               </td>
               <td style={cellStyle}>{userById(u.managerId)?.name || '—'}</td>
+              <td style={cellStyle}>
+                {u.lastLoginDate ? (
+                  <span style={{ color: u.lastLoginDate === todayIST ? 'var(--color-accent-700)' : 'var(--color-neutral-600)', fontWeight: u.lastLoginDate === todayIST ? 600 : 400 }}>
+                    {u.lastLoginDate}
+                    {u.lastLoginDate === todayIST ? ' (today)' : ''}
+                  </span>
+                ) : (
+                  <span style={{ color: 'var(--color-accent-2-700)' }}>Never</span>
+                )}
+              </td>
               <td style={{ ...cellStyle, textAlign: 'center' }}>{u.inPool ? '✓' : '—'}</td>
               <td style={cellStyle}>
                 {canToggleActive ? (
@@ -130,7 +143,7 @@ export function UsersPage() {
           ))}
           {state.users.length === 0 && (
             <tr>
-              <td style={cellStyle} colSpan={8}>
+              <td style={cellStyle} colSpan={9}>
                 No users yet.
               </td>
             </tr>

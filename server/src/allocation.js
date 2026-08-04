@@ -73,6 +73,20 @@ export function allocatePoolLeads() {
 
 function runDailyChecks(atMs = Date.now()) {
   const { dateString, hour, minute } = istParts(atMs);
+  const yesterdayDateString = istParts(atMs - 24 * 60 * 60 * 1000).dateString;
+
+  // Catch-up: this scheduler only runs while the server process is up, which for a locally
+  // run dev server is NOT guaranteed through every 11:59 PM. If a prior night's reset was
+  // missed, stale Active flags (and still-valid tokens) from that earlier day would otherwise
+  // linger indefinitely — nothing else re-evaluates them. Run the missed reset now, attributed
+  // to yesterday's date, so tonight's own on-time reset (checked below) still fires normally.
+  const lastReset = getSetting('lastMidnightResetDate');
+  if (!lastReset || lastReset < yesterdayDateString) {
+    bumpAllTokenVersions();
+    resetAllActive();
+    setSetting('lastMidnightResetDate', yesterdayDateString);
+    console.log('[allocation] Catch-up reset (missed a prior night while the server was down): all users logged out, eligibility reset.');
+  }
 
   if (hour >= WINDOW_START_HOUR) {
     const lastRun = getSetting('lastPoolAllocationDate');
@@ -89,8 +103,7 @@ function runDailyChecks(atMs = Date.now()) {
   }
 
   if (hour === 23 && minute >= 59) {
-    const lastReset = getSetting('lastMidnightResetDate');
-    if (lastReset !== dateString) {
+    if (getSetting('lastMidnightResetDate') !== dateString) {
       bumpAllTokenVersions();
       resetAllActive();
       setSetting('lastMidnightResetDate', dateString);

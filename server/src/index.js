@@ -148,6 +148,23 @@ function checkWebhookSecret(req, res, next) {
 
 // ---- auth ----
 
+// Eligibility for lead allocation: the FIRST activity of the day (login OR an already-valid
+// session resuming via /api/auth/me — most users never re-type their password once a tab
+// stays open) decides Active/Inactive: before 11:00 AM IST = Active. Later same-day activity
+// doesn't re-evaluate this, so an already-Active user doesn't flip back by refreshing at 3pm.
+//
+// This MUST run on both /login and /me. Evaluating it only on /login was the actual bug
+// behind "leads keep going to whoever explicitly typed their password, not everyone who's
+// working today" — a user whose token is still valid from a previous session never hits
+// /login again, so their active flag was never being refreshed for the new day at all.
+function evaluateDailyEligibility(user) {
+  const { dateString, hour } = istParts();
+  if (user.lastLoginDate !== dateString) {
+    return patchUser(user.id, { active: hour < 11, lastLoginDate: dateString });
+  }
+  return user;
+}
+
 app.post('/api/auth/login', (req, res) => {
   const { email, password } = req.body || {};
   let user = getUserByEmail(email);
@@ -155,21 +172,16 @@ app.post('/api/auth/login', (req, res) => {
     return res.status(401).json({ error: 'Invalid email or password' });
   }
 
-  // Eligibility for lead allocation: the FIRST login of the day decides Active/Inactive
-  // (before 11:00 AM IST = Active). Later logins the same day don't re-evaluate this,
-  // so a user who's already Active doesn't get flipped back by logging in again at 3pm.
-  const { dateString, hour } = istParts();
-  if (user.lastLoginDate !== dateString) {
-    user = patchUser(user.id, { active: hour < 11, lastLoginDate: dateString });
-  }
+  user = evaluateDailyEligibility(user);
 
   const token = jwt.sign({ sub: user.id, role: user.role, tokenVersion: user.tokenVersion }, EFFECTIVE_JWT_SECRET, { expiresIn: '7d' });
   res.json({ token, user: sanitizeUser(user) });
 });
 
 app.get('/api/auth/me', requireAuth, (req, res) => {
-  const user = getUser(req.authUser.sub);
+  let user = getUser(req.authUser.sub);
   if (!user) return res.status(401).json({ error: 'Account no longer exists' });
+  user = evaluateDailyEligibility(user);
   res.json(sanitizeUser(user));
 });
 
