@@ -210,6 +210,8 @@ export const api = {
   createAccessory: (name: string) => request<Accessory>('/api/accessories', { method: 'POST', body: JSON.stringify({ name }) }),
   deleteAccessory: (id: string) => request<{ ok: true }>(`/api/accessories/${id}`, { method: 'DELETE' }),
 
+  reassignLead: (id: string, owner: string) => request<Lead>(`/api/leads/${id}/reassign`, { method: 'PATCH', body: JSON.stringify({ owner }) }),
+
   getSales: () => request<SaleAuditRow[]>('/api/sales'),
   auditSale: (leadId: string, auditStatus: 'successful' | 'rejected', auditNote: string) =>
     request<Lead>(`/api/leads/${leadId}/sale-audit`, { method: 'PATCH', body: JSON.stringify({ auditStatus, auditNote }) }),

@@ -53,9 +53,11 @@ export function LeadsGrid() {
     checked: state.cityFilter.includes(c),
     onToggle: () => toggleArrayFilter('cityFilter', c),
   }));
-  const ownerOptions = AGENT_LIST.map((a) => ({
+  // "Unassigned" is included so the pool is just a filter away instead of a separate page —
+  // pick it here, then click into any lead to reassign it from the detail page.
+  const ownerOptions = ['Unassigned', ...AGENT_LIST].map((a) => ({
     id: a,
-    label: a,
+    label: a === 'Unassigned' ? 'Unassigned (Pool)' : a,
     checked: state.ownerFilter.includes(a),
     onToggle: () => toggleArrayFilter('ownerFilter', a),
   }));

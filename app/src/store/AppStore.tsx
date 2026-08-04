@@ -187,10 +187,9 @@ function useProviderValue() {
       return;
     }
     try {
-      const lead = await api.createLead({
-        name: quickName, phone: quickPhone, city: quickCity, pin: quickPin,
-        source: 'Quick Add', owner: state.currentUser?.name || 'Unassigned',
-      });
+      // No owner is sent — the lead goes through the same round-robin / pool allocation
+      // as every other source instead of always landing on whoever happened to add it.
+      const lead = await api.createLead({ name: quickName, phone: quickPhone, city: quickCity, pin: quickPin, source: 'Quick Add' });
       setState((s) => ({ leads: [lead, ...s.leads], quickAddOpen: false, quickName: '', quickPhone: '', quickCity: '', quickPin: '' }));
       showToast('Lead added');
     } catch (err) {
@@ -211,10 +210,9 @@ function useProviderValue() {
     }
     let lead: Lead;
     try {
-      lead = await api.createLead({
-        name: addName, phone: addPhone, email: addEmail, city: addCity, pin: addPin,
-        source: addSource, campaign: addCampaign, owner: state.currentUser?.name || 'Unassigned',
-      });
+      // Same as Quick Add: no owner sent, so it follows round-robin / pool allocation
+      // instead of always landing on whoever happened to add it.
+      lead = await api.createLead({ name: addName, phone: addPhone, email: addEmail, city: addCity, pin: addPin, source: addSource, campaign: addCampaign });
     } catch (err) {
       showToast('Could not add lead: ' + (err as Error).message);
       return;
@@ -385,6 +383,16 @@ function useProviderValue() {
     updateLead(state.selectedId, patch, docs === 'yes' ? 'Sale marked complete with documents' : 'Sale marked complete — documents pending');
     setState({ saleForm: emptySaleForm });
     showToast('Sale recorded');
+  };
+
+  const reassignLead = async (id: string, owner: string) => {
+    try {
+      const updated = await api.reassignLead(id, owner);
+      setState((s) => ({ leads: s.leads.map((l) => (l.id === id ? updated : l)) }));
+      showToast(owner === 'Unassigned' ? 'Lead sent back to the pool' : `Lead reassigned to ${owner}`);
+    } catch (err) {
+      showToast('Could not reassign lead: ' + (err as Error).message);
+    }
   };
 
   const manualStageChange = (id: StageId) => {
@@ -732,6 +740,7 @@ function useProviderValue() {
     onInvoiceFile,
     saveSale,
     manualStageChange,
+    reassignLead,
     auditSale,
     refreshLeads,
     filteredLeads,

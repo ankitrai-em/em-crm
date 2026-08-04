@@ -124,6 +124,58 @@ if (!leadColumns.includes('buyingFor')) {
   db.exec("ALTER TABLE leads ADD COLUMN budget TEXT NOT NULL DEFAULT ''");
 }
 
+// Seeds 100 random demo leads on a genuinely fresh database only (same one-time-only
+// guard pattern as the seed agents above) — never touches an install that already has
+// real lead data.
+const SEED_FIRST_NAMES = ['Rahul', 'Priya', 'Amit', 'Sneha', 'Vikram', 'Anjali', 'Rohan', 'Neha', 'Karan', 'Divya', 'Arjun', 'Pooja', 'Sanjay', 'Kavita', 'Manoj', 'Ritu', 'Ajay', 'Swati', 'Nikhil', 'Meera'];
+const SEED_LAST_NAMES = ['Sharma', 'Verma', 'Gupta', 'Iyer', 'Reddy', 'Nair', 'Joshi', 'Mehta', 'Kapoor', 'Bose', 'Chatterjee', 'Rao', 'Desai', 'Patil', 'Singh'];
+const SEED_CITIES = [
+  ['Pune', '411001'], ['Mumbai', '400001'], ['Bengaluru', '560001'], ['Hyderabad', '500001'],
+  ['Chennai', '600001'], ['Delhi', '110001'], ['Ahmedabad', '380001'], ['Jaipur', '302001'],
+  ['Nagpur', '440001'], ['Noida', '201301'], ['Ludhiana', '141001'], ['Ernakulam', '682001'],
+];
+const SEED_SOURCES = ['Website', 'Facebook Ads', 'Instagram Ads', 'WhatsApp', 'Test Ride Page', 'Inbound Call', 'Referral'];
+const SEED_CAMPAIGNS = ['Monsoon Offer', 'Diwali Sale', 'Buy Now Page', 'Republic Day Offer', 'Summer Launch', '—'];
+
+if (db.prepare('SELECT COUNT(*) as n FROM leads').get().n === 0) {
+  const seedNow = Date.now();
+  for (let i = 0; i < 100; i++) {
+    const first = SEED_FIRST_NAMES[i % SEED_FIRST_NAMES.length];
+    const last = SEED_LAST_NAMES[(i + Math.floor(i / SEED_FIRST_NAMES.length)) % SEED_LAST_NAMES.length];
+    const [city, pin] = SEED_CITIES[i % SEED_CITIES.length];
+    const source = SEED_SOURCES[i % SEED_SOURCES.length];
+    const campaign = SEED_CAMPAIGNS[i % SEED_CAMPAIGNS.length];
+    const owner = DEFAULT_AGENTS[i % DEFAULT_AGENTS.length];
+    const createdOn = seedNow - i * 60000; // spread creation times out by a minute each
+    insertLead({
+      id: 'LSEED' + String(i + 1).padStart(4, '0'),
+      name: `${first} ${last}`,
+      phone: '70' + String(10000000 + i * 41).padStart(8, '0'),
+      secondaryPhone: '',
+      email: `${first.toLowerCase()}.${last.toLowerCase()}${i}@example.com`,
+      city, pin, source, campaign,
+      createdOn,
+      owner,
+      stage: 1,
+      leadScore: 0,
+      followupAt: null,
+      taskDate: createdOn,
+      reTriggered: false,
+      attempts: 0,
+      activity: [{ ts: createdOn, kind: 'note', text: `Lead captured via ${source}` }],
+      testRide: null,
+      sale: null,
+      meta: {},
+      disposition: '',
+      subDisposition: '',
+      buyingFor: '',
+      cyclistWeight: '',
+      cyclistHeight: '',
+      budget: '',
+    });
+  }
+}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS settings (
     key TEXT PRIMARY KEY,
@@ -216,14 +268,33 @@ export const PERMISSION_KEYS = [
   { key: 'runAllocationOverride', label: 'Manually run pool allocation' },
   { key: 'exportData', label: 'Export leads/sales to CSV' },
   { key: 'managePermissions', label: 'Edit this permissions matrix' },
+  { key: 'reassignLeads', label: 'Reassign a lead’s owner (including pulling it back into the pool)' },
 ];
 export const DEFAULT_ROLE_PERMISSIONS = {
   Admin: Object.fromEntries(PERMISSION_KEYS.map((p) => [p.key, true])),
-  Manager: { toggleUserActive: true, exportData: true },
+  Manager: { toggleUserActive: true, exportData: true, reassignLeads: true },
   Agent: {},
 };
 if (getSetting('rolePermissions') === null) {
   setSetting('rolePermissions', DEFAULT_ROLE_PERMISSIONS);
+} else {
+  // Backfill any permission key added in a later release onto an existing (pre-upgrade)
+  // settings blob, without touching anything an Admin already explicitly configured.
+  const existingPerms = getSetting('rolePermissions');
+  let changed = false;
+  for (const role of Object.keys(DEFAULT_ROLE_PERMISSIONS)) {
+    if (!existingPerms[role]) {
+      existingPerms[role] = {};
+      changed = true;
+    }
+    for (const { key } of PERMISSION_KEYS) {
+      if (!(key in existingPerms[role])) {
+        existingPerms[role][key] = !!DEFAULT_ROLE_PERMISSIONS[role][key];
+        changed = true;
+      }
+    }
+  }
+  if (changed) setSetting('rolePermissions', existingPerms);
 }
 
 export function getSetting(key) {

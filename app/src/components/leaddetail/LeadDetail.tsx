@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { STAGE_ORDER, getStage } from '../../data/constants';
 import { formatDate, initials } from '../../data/format';
 import { useApp } from '../../store/AppStore';
@@ -12,11 +13,14 @@ import { CustomerProfileModal } from '../modals/CustomerProfileModal';
 import type { StageId } from '../../types';
 
 export function LeadDetail() {
-  const { state, backToLeads, callLead, manualStageChange, openEditContact, openEditCustomerProfile } = useApp();
+  const { state, backToLeads, callLead, manualStageChange, openEditContact, openEditCustomerProfile, reassignLead, AGENT_LIST } = useApp();
   const lead = state.leads.find((l) => l.id === state.selectedId);
+  const [reassignTo, setReassignTo] = useState('');
   if (!lead) return null;
 
   const st = getStage(lead.stage);
+  const canReassign = state.currentUser?.role === 'Admin' || !!state.rolePermissions?.[state.currentUser?.role as 'Manager' | 'Agent']?.reassignLeads;
+  const reassignOptions = ['Unassigned', ...AGENT_LIST.filter((name) => name !== lead.owner)];
 
   return (
     <div style={{ padding: '12px 48px 80px' }} data-screen-label="Lead Detail">
@@ -95,6 +99,32 @@ export function LeadDetail() {
           <div style={{ background: 'var(--color-surface)', borderRadius: 'var(--radius-md)', padding: 22, display: 'flex', flexDirection: 'column', gap: 12 }}>
             <h5 style={{ margin: 0 }}>Lead Properties</h5>
             <PropertyRow label="Owner" value={lead.owner} />
+            {canReassign && (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <select
+                  value={reassignTo}
+                  onChange={(e) => setReassignTo(e.target.value)}
+                  style={{ flex: 1, minHeight: 32, padding: '4px 8px', fontSize: 12, background: 'var(--color-bg)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-md)' }}
+                >
+                  <option value="">Reassign to…</option>
+                  {reassignOptions.map((name) => (
+                    <option key={name} value={name}>
+                      {name === 'Unassigned' ? 'Pool (Unassigned)' : name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  disabled={!reassignTo}
+                  style={{ background: 'var(--color-accent)', color: 'var(--color-bg)', border: 'none', borderRadius: 'var(--radius-md)', padding: '4px 12px', fontSize: 12, cursor: reassignTo ? 'pointer' : 'default', opacity: reassignTo ? 1 : 0.5 }}
+                  onClick={() => {
+                    reassignLead(lead.id, reassignTo);
+                    setReassignTo('');
+                  }}
+                >
+                  Go
+                </button>
+              </div>
+            )}
             <PropertyRow label="Source" value={lead.source} />
             <PropertyRow label="Campaign" value={lead.campaign} />
             <PropertyRow label="Created On" value={formatDate(lead.createdOn)} />

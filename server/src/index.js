@@ -277,13 +277,18 @@ app.get('/api/leads/:id', requireAuth, (req, res) => {
   res.json(lead);
 });
 
-// Manual lead creation from the app UI (Quick Add / Add Lead modals). Same phone-based
-// dedupe as the webhook: a repeat entry merges into the existing lead instead of creating
-// a second row for the same person.
+// Manual lead creation from the app UI (Quick Add / Add Lead modals). Follows the exact
+// same rules as the webhook: phone-based dedupe (a repeat entry merges into the existing
+// lead rather than creating a second row), and round-robin / pool allocation rather than
+// defaulting to whoever happened to add it — an agent typing in a phone-in lead shouldn't
+// keep it for themselves any more than a website form submission would.
 app.post('/api/leads', requireAuth, (req, res) => {
   const { lead, error } = normalizeIncomingLead(req.body || {});
   if (error) return res.status(400).json({ error });
-  const { lead: result } = upsertLead(lead);
+  let { lead: result, isDuplicate } = upsertLead(lead);
+  if (!isDuplicate && result.owner === 'Unassigned' && isWithinAllocationWindow()) {
+    result = allocateLeadToNextUser(result.id) || result;
+  }
   res.status(201).json(result);
 });
 
@@ -386,6 +391,25 @@ app.patch('/api/leads/:id', requireAuth, (req, res) => {
   const entry = activityEntry || (activityNote ? { ts: Date.now(), kind: 'note', text: activityNote } : undefined);
   const updated = patchLead(req.params.id, patch, entry);
   if (!updated) return res.status(404).json({ error: 'not found' });
+  res.json(updated);
+});
+
+// Manual reassignment — pulling a lead out of the pool onto a specific agent, moving it
+// between agents, or sending it back to the pool ("Unassigned"). Separate from the generic
+// PATCH above (which every agent needs for stage/disposition/sale updates on their own
+// leads) so this one specific field-change can be gated behind its own permission.
+app.patch('/api/leads/:id/reassign', requireAuth, requirePermission('reassignLeads'), (req, res) => {
+  const lead = getLead(req.params.id);
+  if (!lead) return res.status(404).json({ error: 'not found' });
+  const owner = (req.body?.owner || '').trim();
+  if (!owner) return res.status(400).json({ error: 'owner is required (use "Unassigned" to send it back to the pool)' });
+  if (owner !== 'Unassigned' && !getUserByName(owner)) return res.status(400).json({ error: `No user named "${owner}"` });
+  const actor = getUser(req.authUser.sub);
+  const updated = patchLead(lead.id, { owner }, {
+    ts: Date.now(),
+    kind: 'note',
+    text: `Reassigned from ${lead.owner} to ${owner} by ${actor?.name || 'Unknown'}`,
+  });
   res.json(updated);
 });
 
