@@ -78,8 +78,13 @@ function runDailyChecks(atMs = Date.now()) {
     const lastRun = getSetting('lastPoolAllocationDate');
     if (lastRun !== dateString) {
       const count = allocatePoolLeads();
-      setSetting('lastPoolAllocationDate', dateString);
-      console.log(`[allocation] Pool allocation for ${dateString}: ${count} lead(s) allocated.`);
+      // Only mark today's pool run as "done" once the pool actually drained. If it stalled
+      // because no one was Active yet (e.g. the whole team logged in late), leave the flag
+      // unset so the next tick retries instead of leaving those leads stuck until tomorrow.
+      if (listUnallocatedLeadIds().length === 0) {
+        setSetting('lastPoolAllocationDate', dateString);
+      }
+      if (count > 0) console.log(`[allocation] Pool allocation for ${dateString}: ${count} lead(s) allocated.`);
     }
   }
 

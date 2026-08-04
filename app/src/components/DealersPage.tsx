@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useApp } from '../store/AppStore';
-import { api } from '../lib/api';
+import { api, apiBaseUrl } from '../lib/api';
 
 export function DealersPage() {
   const { state, showToast } = useApp();
@@ -43,10 +43,15 @@ export function DealersPage() {
           the franchise/dealer export.
         </p>
         <p style={{ fontSize: 13 }}>Currently loaded: <strong>{count ?? '—'}</strong> dealers.</p>
-        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '9px 16px', borderRadius: 'var(--radius-md)', border: '1px dashed var(--color-divider)', cursor: 'pointer', fontSize: 13 }}>
-          {uploading ? 'Importing…' : 'Choose CSV file…'}
-          <input type="file" accept=".csv" disabled={uploading} onChange={(e) => onFile(e.target.files?.[0])} style={{ display: 'none' }} />
-        </label>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '9px 16px', borderRadius: 'var(--radius-md)', border: '1px dashed var(--color-divider)', cursor: 'pointer', fontSize: 13 }}>
+            {uploading ? 'Importing…' : 'Choose CSV file…'}
+            <input type="file" accept=".csv" disabled={uploading} onChange={(e) => onFile(e.target.files?.[0])} style={{ display: 'none' }} />
+          </label>
+          <a href={`${apiBaseUrl}/api/dealers/import/sample`} style={{ fontSize: 13, color: 'var(--color-accent-700)' }}>
+            ↓ Download sample CSV
+          </a>
+        </div>
       </div>
     </div>
   );

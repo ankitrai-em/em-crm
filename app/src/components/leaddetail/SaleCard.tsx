@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { Lead } from '../../types';
 import { useApp } from '../../store/AppStore';
 import { apiBaseUrl } from '../../lib/api';
@@ -8,10 +9,13 @@ const AUDIT_LABEL: Record<string, string> = { pending: 'Audit pending', successf
 const AUDIT_COLOR: Record<string, string> = { pending: 'var(--color-neutral-600)', successful: 'var(--color-accent-700)', rejected: 'var(--color-accent-2-700)' };
 
 export function SaleCard({ lead }: { lead: Lead }) {
-  const { state, openSaleForm, cancelSaleForm, setSaleDocs, updateSaleForm, toggleSaleAccessory, onInvoiceFile, saveSale } = useApp();
+  const { state, openSaleForm, cancelSaleForm, setSaleDocs, updateSaleForm, toggleSaleAccessory, onInvoiceFile, saveSale, auditSale } = useApp();
   const form = state.saleForm;
   const hasInvoice = !!(lead.sale && lead.sale.invoiceNo);
   const missingInvoice = !!(lead.sale && !lead.sale.invoiceNo);
+  const isAdmin = state.currentUser?.role === 'Admin';
+  const isPending = !!lead.sale && (lead.sale.auditStatus === 'pending' || !lead.sale.auditStatus);
+  const [rejectNote, setRejectNote] = useState('');
 
   return (
     <div style={{ background: 'var(--color-surface)', borderRadius: 'var(--radius-md)', padding: 22 }}>
@@ -47,11 +51,36 @@ export function SaleCard({ lead }: { lead: Lead }) {
               )}
             </div>
           )}
+          {!hasInvoice && !missingInvoice && <div style={{ color: 'var(--color-neutral-600)' }}>No invoice uploaded.</div>}
           {missingInvoice && <div style={{ color: 'var(--color-accent-2-700)', fontWeight: 600 }}>Documents pending</div>}
           <div style={{ fontWeight: 600, color: AUDIT_COLOR[lead.sale.auditStatus] }}>
             {AUDIT_LABEL[lead.sale.auditStatus]}
             {lead.sale.auditStatus === 'rejected' && lead.sale.auditNote ? ` — ${lead.sale.auditNote}` : ''}
           </div>
+          {isAdmin && isPending && (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 4, padding: 12, background: 'var(--color-bg)', borderRadius: 'var(--radius-md)' }}>
+              <span style={{ fontSize: 12, color: 'var(--color-neutral-600)', width: '100%' }}>Sales Audit</span>
+              <button
+                style={{ background: 'var(--color-accent)', color: 'var(--color-bg)', border: 'none', borderRadius: 'var(--radius-md)', padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}
+                onClick={() => auditSale(lead.id, 'successful', '')}
+              >
+                Mark Successful
+              </button>
+              <input
+                type="text"
+                placeholder="Rejection note…"
+                value={rejectNote}
+                onChange={(e) => setRejectNote(e.target.value)}
+                style={{ fontSize: 12, padding: '5px 8px', background: 'var(--color-surface)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-md)', width: 160 }}
+              />
+              <button
+                style={{ background: 'transparent', color: 'var(--color-accent-2-700)', border: '1px solid var(--color-accent-2)', borderRadius: 'var(--radius-md)', padding: '6px 12px', fontSize: 12, cursor: 'pointer' }}
+                onClick={() => auditSale(lead.id, 'rejected', rejectNote)}
+              >
+                Reject
+              </button>
+            </div>
+          )}
         </div>
       )}
       {!form.open && (

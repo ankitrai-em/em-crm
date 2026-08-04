@@ -145,7 +145,7 @@ function normalizeIncomingLead(body) {
       stage: 1,
       leadScore: 0,
       followupAt: null,
-      taskDate: now + 86400000,
+      taskDate: now,
       reTriggered: false,
       attempts: 0,
       activity: [{ ts: now, kind: 'note', text: `Lead captured via ${source}` }],
@@ -204,7 +204,7 @@ function leadRowFromCsv(row, ownerFallback) {
       stage: 1,
       leadScore: 0,
       followupAt: null,
-      taskDate: now + 86400000,
+      taskDate: now,
       reTriggered: false,
       attempts: 0,
       activity: [{ ts: now, kind: 'note', text: `Lead captured via ${source}` }],
@@ -366,6 +366,18 @@ app.get('/api/dealers', requireAuth, (req, res) => {
 
 app.get('/api/dealers/count', requireAuth, requireAdmin, (_req, res) => {
   res.json({ count: countDealers() });
+});
+
+// No auth required, same reasoning as the lead-import sample: blank template, no real data,
+// and a plain <a href download> link can't attach an Authorization header anyway.
+app.get('/api/dealers/import/sample', (_req, res) => {
+  const csv = [
+    'Name,City,State,PIN Code,Address,Primary Contact Number,Status,Franchise Code',
+    'EMotorad Experience Store,Pune,Maharashtra,411001,"123 FC Road, Pune",9876543210,Active,FC001',
+  ].join('\n');
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', 'attachment; filename="dealer-import-sample.csv"');
+  res.send(csv);
 });
 
 app.post('/api/dealers/import', requireAuth, requireAdmin, csvUpload.single('file'), (req, res) => {
