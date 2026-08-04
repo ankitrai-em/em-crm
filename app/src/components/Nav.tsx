@@ -4,14 +4,14 @@ import { initials } from '../data/format';
 import type { View } from '../types';
 
 export function Nav() {
-  const { state, goDashboard, goLeads, goImportLeads, goUsers, goInventory, goAccessories, goIntegrations, goDispositions, goDealers, goAuditLog, goSalesAudit, logout } = useApp();
+  const { state, goDashboard, goLeads, goImportLeads, goUsers, goInventory, goAccessories, goIntegrations, goDispositions, goDealers, goAuditLog, goSalesAudit, goPermissions, logout } = useApp();
   const [adminOpen, setAdminOpen] = useState(false);
   const view = state.view;
   const user = state.currentUser;
   const isAdmin = user?.role === 'Admin';
 
   const linkStyle = (active: boolean) => ({ fontSize: 14, color: active ? 'var(--color-accent-700)' : 'var(--color-text)', fontWeight: active ? 600 : 400 });
-  const adminViews: View[] = ['integrations', 'dispositions', 'dealers', 'audit-log', 'sales-audit'];
+  const adminViews: View[] = ['integrations', 'dispositions', 'dealers', 'audit-log', 'sales-audit', 'permissions'];
   const adminActive = adminViews.includes(view);
 
   return (
@@ -56,6 +56,7 @@ export function Nav() {
                   { label: 'Dealers', view: 'dealers' as View, go: goDealers },
                   { label: 'Audit Log', view: 'audit-log' as View, go: goAuditLog },
                   { label: 'Sales Audit', view: 'sales-audit' as View, go: goSalesAudit },
+                  { label: 'Permissions', view: 'permissions' as View, go: goPermissions },
                 ].map((item) => (
                   <a
                     key={item.view}

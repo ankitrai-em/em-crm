@@ -1,4 +1,4 @@
-import type { Accessory, ActivityEntry, AllocationStatus, AuditLogEntry, Dealer, Disposition, InventoryItem, Lead, LeadImportResult, Role, Sale, SaleAuditRow, TestRide, User } from '../types';
+import type { Accessory, ActivityEntry, AllocationStatus, AuditLogEntry, BuyingFor, Dealer, Disposition, InventoryItem, Lead, LeadImportResult, PermissionKey, Role, RolePermissions, Sale, SaleAuditRow, TestRide, User } from '../types';
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8787';
 const TOKEN_KEY = 'emcrm_token';
@@ -36,6 +36,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export interface NewLeadInput {
   name: string;
   phone: string;
+  secondaryPhone?: string;
   email?: string;
   city?: string;
   pin?: string;
@@ -45,6 +46,11 @@ export interface NewLeadInput {
 }
 
 export interface LeadPatch {
+  name?: string;
+  phone?: string;
+  secondaryPhone?: string;
+  email?: string;
+  pin?: string;
   stage?: number;
   followupAt?: number | null;
   taskDate?: number | null;
@@ -52,6 +58,10 @@ export interface LeadPatch {
   attempts?: number;
   testRide?: TestRide | null;
   sale?: Sale | null;
+  buyingFor?: BuyingFor;
+  cyclistWeight?: string;
+  cyclistHeight?: string;
+  budget?: string;
   activityNote?: string;
   activityEntry?: ActivityEntry;
 }
@@ -69,6 +79,9 @@ export interface NewUserInput {
   email?: string;
   phone?: string;
   role: Role;
+  managerId?: string | null;
+  hierarchyEnabled?: boolean;
+  inPool?: boolean;
 }
 
 export interface UserPatch {
@@ -76,6 +89,9 @@ export interface UserPatch {
   email?: string;
   phone?: string;
   role?: Role;
+  managerId?: string | null;
+  hierarchyEnabled?: boolean;
+  inPool?: boolean;
 }
 
 export interface UploadResult {
@@ -100,6 +116,15 @@ export interface NewInventoryInput {
   modelRange: string;
   modelSku: string;
   modelColour: string;
+}
+
+export interface WebhookSecretConfig {
+  secret: string;
+}
+
+export interface PermissionsResponse {
+  permissions: RolePermissions;
+  keys: PermissionKey[];
 }
 
 export const api = {
@@ -192,6 +217,43 @@ export const api = {
   setUserActive: (id: string, active: boolean) => request<User>(`/api/users/${id}/active`, { method: 'PATCH', body: JSON.stringify({ active }) }),
   getAllocationStatus: () => request<AllocationStatus>('/api/allocation/status'),
   runPoolAllocation: () => request<{ count: number }>('/api/allocation/run-pool', { method: 'POST' }),
+
+  getWebhookSecret: () => request<WebhookSecretConfig>('/api/integrations/webhook'),
+  saveWebhookSecret: (secret: string) => request<WebhookSecretConfig>('/api/integrations/webhook', { method: 'PUT', body: JSON.stringify({ secret }) }),
+
+  getPermissions: () => request<PermissionsResponse>('/api/settings/permissions'),
+  savePermissions: (permissions: RolePermissions) => request<RolePermissions>('/api/settings/permissions', { method: 'PUT', body: JSON.stringify(permissions) }),
+
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<User>('/api/auth/change-password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) }),
+
+  // Downloads a CSV that requires auth (a plain <a href> can't attach a Bearer token):
+  // fetch it as a blob and trigger the browser's normal download UI from that.
+  exportLeads: () => downloadCsv('/api/leads/export', 'leads-export.csv'),
+  exportSales: () => downloadCsv('/api/sales/export', 'sales-export.csv'),
 };
+
+async function downloadCsv(path: string, fallbackName: string): Promise<void> {
+  const token = auth.getToken();
+  const res = await fetch(`${BASE_URL}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `Export failed (${res.status})`);
+  }
+  const disposition = res.headers.get('Content-Disposition') || '';
+  const match = disposition.match(/filename="([^"]+)"/);
+  const filename = match ? match[1] : fallbackName;
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
 
 export const apiBaseUrl = BASE_URL;

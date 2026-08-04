@@ -4,9 +4,10 @@ import { api } from '../lib/api';
 import type { AllocationStatus, Role } from '../types';
 
 export function UsersPage() {
-  const { state, showToast, openAddUser, openEditUser, setUserRole, toggleUserActive, removeUser, openResetPassword, ROLE_LIST, ROLE_PERMISSIONS } = useApp();
+  const { state, showToast, openAddUser, openEditUser, setUserRole, toggleUserActive, removeUser, openResetPassword, goPermissions, ROLE_LIST } = useApp();
   const isAdmin = state.currentUser?.role === 'Admin';
   const canToggleActive = isAdmin || state.currentUser?.role === 'Manager';
+  const userById = (id: string | null) => state.users.find((u) => u.id === id);
   const [allocation, setAllocation] = useState<AllocationStatus | null>(null);
 
   const loadAllocation = () => {
@@ -68,7 +69,7 @@ export function UsersPage() {
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14, marginBottom: 36 }}>
         <thead>
           <tr>
-            {['Name', 'Email', 'Phone', 'Role', 'Active', ''].map((h) => (
+            {['Name', 'Email', 'Phone', 'Role', 'Manager', 'In Pool', 'Active', ''].map((h) => (
               <th key={h} style={headStyle}>
                 {h}
               </th>
@@ -98,6 +99,8 @@ export function UsersPage() {
                   u.role
                 )}
               </td>
+              <td style={cellStyle}>{userById(u.managerId)?.name || '—'}</td>
+              <td style={{ ...cellStyle, textAlign: 'center' }}>{u.inPool ? '✓' : '—'}</td>
               <td style={cellStyle}>
                 {canToggleActive ? (
                   <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
@@ -127,7 +130,7 @@ export function UsersPage() {
           ))}
           {state.users.length === 0 && (
             <tr>
-              <td style={cellStyle} colSpan={6}>
+              <td style={cellStyle} colSpan={8}>
                 No users yet.
               </td>
             </tr>
@@ -135,21 +138,14 @@ export function UsersPage() {
         </tbody>
       </table>
 
-      <h3 style={{ marginBottom: 12 }}>Roles &amp; Permissions</h3>
-      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-        {ROLE_LIST.map((role) => (
-          <div key={role} style={{ flex: '1 1 220px', padding: 18, borderRadius: 'var(--radius-lg)', background: 'var(--color-surface)', boxShadow: 'var(--shadow-lg)' }}>
-            <div style={{ fontWeight: 600, marginBottom: 10 }}>{role}</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {ROLE_PERMISSIONS[role].map((perm) => (
-                <span key={perm} style={{ fontSize: 12, padding: '4px 10px', borderRadius: 999, background: 'var(--color-accent-100)', color: 'var(--color-accent-800)', width: 'fit-content' }}>
-                  {perm}
-                </span>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
+      {isAdmin && (
+        <button
+          style={{ background: 'transparent', color: 'var(--color-accent)', border: 'none', padding: '6px 4px', fontFamily: 'var(--font-heading)', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}
+          onClick={goPermissions}
+        >
+          Manage roles &amp; permissions →
+        </button>
+      )}
     </div>
   );
 }

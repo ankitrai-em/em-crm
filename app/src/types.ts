@@ -58,10 +58,13 @@ export interface Sale {
   auditNote?: string;
 }
 
+export type BuyingFor = '' | 'Self' | 'Child' | 'Wife' | 'Parent' | 'Friend';
+
 export interface Lead {
   id: string;
   name: string | null;
   phone: string;
+  secondaryPhone: string;
   email: string;
   city: string;
   pin: string;
@@ -81,6 +84,10 @@ export interface Lead {
   meta: Record<string, string>;
   disposition: string;
   subDisposition: string;
+  buyingFor: BuyingFor;
+  cyclistWeight: string;
+  cyclistHeight: string;
+  budget: string;
 }
 
 export type FollowupTag = 'overdue' | 'today' | 'upcoming' | null;
@@ -121,13 +128,22 @@ export interface ContactEditForm {
   open: boolean;
   name: string;
   phone: string;
+  secondaryPhone: string;
   email: string;
   pin: string;
 }
 
+export interface CustomerProfileForm {
+  open: boolean;
+  buyingFor: BuyingFor;
+  cyclistWeight: string;
+  cyclistHeight: string;
+  budget: string;
+}
+
 export type FilterKey = 'stage' | 'source' | 'city' | 'owner' | 'created' | 'followup' | 'task';
 
-export type View = 'dashboard' | 'leads' | 'detail' | 'users' | 'integrations' | 'audit-log' | 'dealers' | 'inventory' | 'accessories' | 'sales-audit' | 'dispositions' | 'import-leads';
+export type View = 'dashboard' | 'leads' | 'detail' | 'users' | 'integrations' | 'audit-log' | 'dealers' | 'inventory' | 'accessories' | 'sales-audit' | 'dispositions' | 'import-leads' | 'permissions';
 
 export type Role = 'Admin' | 'Manager' | 'Agent';
 
@@ -140,7 +156,18 @@ export interface User {
   createdOn: number;
   active: boolean;
   lastLoginDate: string;
+  managerId: string | null;
+  hierarchyEnabled: boolean;
+  inPool: boolean;
+  mustChangePassword: boolean;
 }
+
+export interface PermissionKey {
+  key: string;
+  label: string;
+}
+
+export type RolePermissions = Record<Role, Record<string, boolean>>;
 
 export interface AllocationStatus {
   poolCount: number;
@@ -151,6 +178,7 @@ export interface AllocationStatus {
 
 export interface LeadImportResult {
   created: number;
+  merged: number;
   errors: { row: number; reason: string }[];
 }
 
@@ -161,6 +189,9 @@ export interface UserForm {
   email: string;
   phone: string;
   role: Role;
+  managerId: string;
+  hierarchyEnabled: boolean;
+  inPool: boolean;
 }
 
 export interface Dealer {

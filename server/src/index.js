@@ -9,14 +9,17 @@ import jwt from 'jsonwebtoken';
 import { parse as parseCsv } from 'csv-parse/sync';
 import { nanoid } from 'nanoid';
 import {
-  listLeads, getLead, insertLead, patchLead, listUsers, getUser, getUserByName, getUserByEmail, insertUser, patchUser, deleteUser, DEFAULT_PASSWORD,
+  listLeads, getLead, insertLead, patchLead, findLeadByPhone, getVisibleOwnerNames,
+  listUsers, getUser, getUserByName, getUserByEmail, insertUser, patchUser, deleteUser, DEFAULT_PASSWORD,
   getSetting, setSetting, insertAuditLog, listAuditLog,
   listDealerStates, listDealerCities, listDealers, replaceDealers, countDealers,
   listInventory, getInventoryItem, insertInventoryItem, patchInventoryItem, deleteInventoryItem,
   listAccessories, insertAccessory, deleteAccessory,
+  PERMISSION_KEYS, DEFAULT_ROLE_PERMISSIONS,
 } from './db.js';
 import { placeCall } from './telephony.js';
 import { istParts, isWithinAllocationWindow, allocateLeadToNextUser, allocatePoolLeads, startAllocationScheduler } from './allocation.js';
+import { startBackupScheduler } from './backup.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = process.env.UPLOADS_DIR ? path.resolve(process.env.UPLOADS_DIR) : path.join(__dirname, '..', 'uploads');
@@ -48,7 +51,43 @@ const PORT = process.env.PORT || 8787;
 function sanitizeUser(user) {
   if (!user) return user;
   const { password, tokenVersion, ...safe } = user;
-  return { ...safe, active: !!safe.active };
+  return { ...safe, active: !!safe.active, hierarchyEnabled: !!safe.hierarchyEnabled, inPool: !!safe.inPool, mustChangePassword: !!safe.mustChangePassword };
+}
+
+function csvEscape(v) {
+  const s = v === null || v === undefined ? '' : String(v);
+  return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function toCsv(headers, rows) {
+  return [headers, ...rows].map((r) => r.map(csvEscape).join(',')).join('\n');
+}
+
+// Merges a repeat submission (same phone number already on file) into the existing lead
+// instead of creating a duplicate row: updates whichever fields came in with a new value,
+// bumps taskDate to now, flags reTriggered, and logs what changed — but never touches
+// createdOn, owner, or stage, so an agent's existing work on the lead isn't disturbed.
+function upsertLead(rawLead) {
+  const existing = findLeadByPhone(rawLead.phone);
+  if (!existing) return { lead: insertLead(rawLead), isDuplicate: false };
+
+  const changes = [];
+  const patch = { reTriggered: true, taskDate: Date.now() };
+  for (const field of ['name', 'email', 'city', 'pin', 'source', 'campaign']) {
+    const incoming = rawLead[field];
+    if (incoming && incoming !== '—' && incoming !== existing[field]) {
+      changes.push(`${field}: '${existing[field] || '—'}' → '${incoming}'`);
+      patch[field] = incoming;
+    }
+  }
+  if (rawLead.meta && Object.keys(rawLead.meta).length) {
+    patch.meta = { ...existing.meta, ...rawLead.meta };
+  }
+  const updated = patchLead(existing.id, patch, {
+    ts: Date.now(),
+    kind: 'note',
+    text: `Repeat submission via ${rawLead.source || 'unknown source'}` + (changes.length ? ` — ${changes.join('; ')}` : ''),
+  });
+  return { lead: updated, isDuplicate: true };
 }
 
 function logAudit(req, action, target, details) {
@@ -84,13 +123,26 @@ function requireAuth(req, res, next) {
   }
 }
 
-function requireAdmin(req, res, next) {
-  if (req.authUser?.role !== 'Admin') return res.status(403).json({ error: 'Admin access required' });
-  next();
+// Dynamic, Admin-editable role x permission matrix (see Permissions page). Admin always
+// passes regardless of what's stored, so a misconfigured matrix can never lock Admin out.
+function requirePermission(key) {
+  return (req, res, next) => {
+    if (req.authUser?.role === 'Admin') return next();
+    const matrix = getSetting('rolePermissions') || DEFAULT_ROLE_PERMISSIONS;
+    const rolePerms = matrix[req.authUser?.role] || {};
+    if (!rolePerms[key]) return res.status(403).json({ error: 'You do not have permission to do this' });
+    next();
+  };
 }
 
-function requireAdminOrManager(req, res, next) {
-  if (!['Admin', 'Manager'].includes(req.authUser?.role)) return res.status(403).json({ error: 'Admin or Manager access required' });
+// Public endpoint protection: if an Admin has set a webhook secret under Integrations,
+// every POST must carry it; if none is set, the endpoint stays open (today's behavior).
+function checkWebhookSecret(req, res, next) {
+  const configured = getSetting('webhookSecret');
+  if (!configured) return next();
+  if (req.headers['x-webhook-secret'] !== configured) {
+    return res.status(401).json({ error: 'Invalid or missing webhook secret' });
+  }
   next();
 }
 
@@ -121,6 +173,22 @@ app.get('/api/auth/me', requireAuth, (req, res) => {
   res.json(sanitizeUser(user));
 });
 
+// Self-service password change — clears mustChangePassword, which is set on every new
+// account and every Admin password reset to force this on next login.
+app.post('/api/auth/change-password', requireAuth, (req, res) => {
+  const { currentPassword, newPassword } = req.body || {};
+  const user = getUser(req.authUser.sub);
+  if (!user) return res.status(401).json({ error: 'Account no longer exists' });
+  if (!bcrypt.compareSync(currentPassword || '', user.password)) {
+    return res.status(400).json({ error: 'Current password is incorrect' });
+  }
+  if (!newPassword || newPassword.length < 8) {
+    return res.status(400).json({ error: 'New password must be at least 8 characters' });
+  }
+  const updated = patchUser(user.id, { password: bcrypt.hashSync(newPassword, 10), mustChangePassword: false });
+  res.json(sanitizeUser(updated));
+});
+
 function normalizeIncomingLead(body) {
   const name = body.name || body.full_name || body.fullName || [body.first_name, body.last_name].filter(Boolean).join(' ') || null;
   const phone = body.phone || body.phone_number || body.phoneNumber || body.mobile || '';
@@ -135,6 +203,7 @@ function normalizeIncomingLead(body) {
       id: 'L' + nanoid(6).toUpperCase(),
       name,
       phone: String(phone),
+      secondaryPhone: body.secondaryPhone || body.secondary_phone || '',
       email,
       city: body.city || '—',
       pin: body.pin || body.pincode || body.zip || '—',
@@ -151,6 +220,10 @@ function normalizeIncomingLead(body) {
       activity: [{ ts: now, kind: 'note', text: `Lead captured via ${source}` }],
       testRide: null,
       sale: null,
+      buyingFor: body.buyingFor || '',
+      cyclistWeight: body.cyclistWeight || '',
+      cyclistHeight: body.cyclistHeight || '',
+      budget: body.budget || '',
       // Freeform bag for source-specific attributes (EBike model, budget, gclid, company, etc.)
       // that don't map to a first-class column. Shown read-only on the lead detail page.
       meta: body.meta && typeof body.meta === 'object' && !Array.isArray(body.meta) ? body.meta : {},
@@ -158,9 +231,32 @@ function normalizeIncomingLead(body) {
   };
 }
 
-// List all leads
-app.get('/api/leads', requireAuth, (_req, res) => {
-  res.json(listLeads());
+// List all leads. Hierarchy-scoped: if the requester has hierarchyEnabled on (see Users),
+// only leads owned by them or their reporting tree come back; everyone else still sees
+// every lead, matching the app's behavior before hierarchy existed.
+app.get('/api/leads', requireAuth, (req, res) => {
+  const visible = getVisibleOwnerNames(req.authUser.sub);
+  const leads = listLeads();
+  res.json(visible ? leads.filter((l) => visible.has(l.owner)) : leads);
+});
+
+// Must come before /api/leads/:id — otherwise Express matches "export" as an :id and
+// this route never gets hit.
+app.get('/api/leads/export', requireAuth, requirePermission('exportData'), (req, res) => {
+  const visible = getVisibleOwnerNames(req.authUser.sub);
+  const leads = listLeads().filter((l) => !visible || visible.has(l.owner));
+  const csv = toCsv(
+    ['ID', 'Name', 'Phone', 'Secondary Phone', 'Email', 'City', 'Pin', 'Source', 'Campaign', 'Owner', 'Stage', 'Lead Score', 'Disposition', 'Sub-Disposition', 'Repeat', 'Created On', 'Task Date', 'Follow-up At'],
+    leads.map((l) => [
+      l.id, l.name || '', l.phone, l.secondaryPhone || '', l.email || '', l.city || '', l.pin || '',
+      l.source || '', l.campaign || '', l.owner || '', l.stage, l.leadScore, l.disposition || '', l.subDisposition || '',
+      l.reTriggered ? 'Yes' : 'No', new Date(l.createdOn).toISOString(),
+      l.taskDate ? new Date(l.taskDate).toISOString() : '', l.followupAt ? new Date(l.followupAt).toISOString() : '',
+    ]),
+  );
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename="leads-export-${Date.now()}.csv"`);
+  res.send(csv);
 });
 
 app.get('/api/leads/:id', requireAuth, (req, res) => {
@@ -169,11 +265,14 @@ app.get('/api/leads/:id', requireAuth, (req, res) => {
   res.json(lead);
 });
 
-// Manual lead creation from the app UI (Quick Add / Add Lead modals)
+// Manual lead creation from the app UI (Quick Add / Add Lead modals). Same phone-based
+// dedupe as the webhook: a repeat entry merges into the existing lead instead of creating
+// a second row for the same person.
 app.post('/api/leads', requireAuth, (req, res) => {
   const { lead, error } = normalizeIncomingLead(req.body || {});
   if (error) return res.status(400).json({ error });
-  res.status(201).json(insertLead(lead));
+  const { lead: result } = upsertLead(lead);
+  res.status(201).json(result);
 });
 
 // ---- bulk lead import from CSV ----
@@ -238,31 +337,34 @@ app.post('/api/leads/import', requireAuth, csvUpload.single('file'), (req, res) 
   const actor = getUser(req.authUser.sub);
   const errors = [];
   let created = 0;
+  let merged = 0;
   records.forEach((row, i) => {
     const { lead, error } = leadRowFromCsv(row, actor?.name || 'Unassigned');
     if (error) {
       errors.push({ row: i + 2, reason: error }); // +2: 1-indexed, plus header row
       return;
     }
-    insertLead(lead);
-    created++;
+    const { isDuplicate } = upsertLead(lead);
+    if (isDuplicate) merged++;
+    else created++;
   });
-  res.status(201).json({ created, errors });
+  res.status(201).json({ created, merged, errors });
 });
 
 // Generic intake endpoint for external lead sources (ad platforms, website forms, CRMs).
 // Point any POST webhook here; field names are normalized on a best-effort basis.
-// Real-time round-robin allocation applies only to leads that come in unassigned and
-// only during the 11:00 AM - 7:00 PM IST window; outside that window they sit in the
-// Lead Pool until the next allocation run (11:00 AM daily).
-app.post('/api/leads/webhook', (req, res) => {
+// Real-time round-robin allocation applies only to genuinely new leads that come in
+// unassigned during the 11:00 AM - 7:00 PM IST window; outside that window they sit in
+// the Lead Pool until the next allocation run (11:00 AM daily). A repeat submission for a
+// phone number already on file merges into the existing lead instead of allocating again.
+app.post('/api/leads/webhook', checkWebhookSecret, (req, res) => {
   const { lead, error } = normalizeIncomingLead(req.body || {});
   if (error) return res.status(400).json({ error });
-  let inserted = insertLead(lead);
-  if (inserted.owner === 'Unassigned' && isWithinAllocationWindow()) {
-    inserted = allocateLeadToNextUser(inserted.id) || inserted;
+  let { lead: result, isDuplicate } = upsertLead(lead);
+  if (!isDuplicate && result.owner === 'Unassigned' && isWithinAllocationWindow()) {
+    result = allocateLeadToNextUser(result.id) || result;
   }
-  res.status(201).json(inserted);
+  res.status(201).json(result);
 });
 
 // Partial update: stage changes, follow-ups, test rides, sales, manual edits.
@@ -317,11 +419,11 @@ app.post('/api/uploads', requireAuth, upload.single('file'), (req, res) => {
 // Admin-only. Currently just telephony (click-to-call); more providers can be added
 // as additional keys the same way (getSetting/setSetting are a generic key-value store).
 
-app.get('/api/integrations/telephony', requireAuth, requireAdmin, (_req, res) => {
+app.get('/api/integrations/telephony', requireAuth, requirePermission('manageIntegrations'), (_req, res) => {
   res.json(getSetting('telephony') || { provider: 'mock', sarv: {}, twilio: {}, exotel: {} });
 });
 
-app.put('/api/integrations/telephony', requireAuth, requireAdmin, (req, res) => {
+app.put('/api/integrations/telephony', requireAuth, requirePermission('manageIntegrations'), (req, res) => {
   const { provider, sarv, twilio, exotel } = req.body || {};
   const saved = setSetting('telephony', {
     provider: provider || 'mock',
@@ -332,6 +434,18 @@ app.put('/api/integrations/telephony', requireAuth, requireAdmin, (req, res) => 
   res.json(saved);
 });
 
+// Webhook secret shown/edited from the same Integrations page. Empty string clears it
+// (leaves the webhook open), matching checkWebhookSecret's "unset = open" behavior.
+app.get('/api/integrations/webhook', requireAuth, requirePermission('manageIntegrations'), (_req, res) => {
+  res.json({ secret: getSetting('webhookSecret') || '' });
+});
+
+app.put('/api/integrations/webhook', requireAuth, requirePermission('manageIntegrations'), (req, res) => {
+  const secret = (req.body?.secret || '').trim();
+  setSetting('webhookSecret', secret || null);
+  res.json({ secret });
+});
+
 // ---- dispositions / sub-dispositions ----
 // Listing is open to any logged-in user (needed for the Log a Call form); editing the
 // taxonomy is Admin-only. Stored as one JSON blob: [{ id, label, connected, subDispositions: [{id,label}] }]
@@ -340,7 +454,7 @@ app.get('/api/settings/dispositions', requireAuth, (_req, res) => {
   res.json(getSetting('dispositions') || []);
 });
 
-app.put('/api/settings/dispositions', requireAuth, requireAdmin, (req, res) => {
+app.put('/api/settings/dispositions', requireAuth, requirePermission('manageDispositions'), (req, res) => {
   if (!Array.isArray(req.body)) return res.status(400).json({ error: 'body must be an array of dispositions' });
   res.json(setSetting('dispositions', req.body));
 });
@@ -364,7 +478,7 @@ app.get('/api/dealers', requireAuth, (req, res) => {
   res.json(listDealers(state, city));
 });
 
-app.get('/api/dealers/count', requireAuth, requireAdmin, (_req, res) => {
+app.get('/api/dealers/count', requireAuth, requirePermission('manageDealers'), (_req, res) => {
   res.json({ count: countDealers() });
 });
 
@@ -380,7 +494,7 @@ app.get('/api/dealers/import/sample', (_req, res) => {
   res.send(csv);
 });
 
-app.post('/api/dealers/import', requireAuth, requireAdmin, csvUpload.single('file'), (req, res) => {
+app.post('/api/dealers/import', requireAuth, requirePermission('manageDealers'), csvUpload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'file is required' });
   let records;
   try {
@@ -418,20 +532,20 @@ app.get('/api/inventory', requireAuth, (_req, res) => {
   res.json(listInventory());
 });
 
-app.post('/api/inventory', requireAuth, requireAdmin, (req, res) => {
+app.post('/api/inventory', requireAuth, requirePermission('manageInventory'), (req, res) => {
   const { modelRange, modelSku, modelColour } = req.body || {};
   if (!modelRange || !modelSku || !modelColour) return res.status(400).json({ error: 'modelRange, modelSku, and modelColour are required' });
   const item = insertInventoryItem({ id: 'I' + nanoid(8).toUpperCase(), modelRange, modelSku, modelColour, createdOn: Date.now() });
   res.status(201).json(item);
 });
 
-app.patch('/api/inventory/:id', requireAuth, requireAdmin, (req, res) => {
+app.patch('/api/inventory/:id', requireAuth, requirePermission('manageInventory'), (req, res) => {
   const updated = patchInventoryItem(req.params.id, req.body || {});
   if (!updated) return res.status(404).json({ error: 'not found' });
   res.json(updated);
 });
 
-app.delete('/api/inventory/:id', requireAuth, requireAdmin, (req, res) => {
+app.delete('/api/inventory/:id', requireAuth, requirePermission('manageInventory'), (req, res) => {
   if (!getInventoryItem(req.params.id)) return res.status(404).json({ error: 'not found' });
   deleteInventoryItem(req.params.id);
   res.json({ ok: true });
@@ -443,13 +557,13 @@ app.get('/api/accessories', requireAuth, (_req, res) => {
   res.json(listAccessories());
 });
 
-app.post('/api/accessories', requireAuth, requireAdmin, (req, res) => {
+app.post('/api/accessories', requireAuth, requirePermission('manageAccessories'), (req, res) => {
   const { name } = req.body || {};
   if (!name) return res.status(400).json({ error: 'name is required' });
   res.status(201).json(insertAccessory({ id: 'C' + nanoid(8).toUpperCase(), name, createdOn: Date.now() }));
 });
 
-app.delete('/api/accessories/:id', requireAuth, requireAdmin, (req, res) => {
+app.delete('/api/accessories/:id', requireAuth, requirePermission('manageAccessories'), (req, res) => {
   deleteAccessory(req.params.id);
   res.json({ ok: true });
 });
@@ -457,14 +571,30 @@ app.delete('/api/accessories/:id', requireAuth, requireAdmin, (req, res) => {
 // ---- sales audit ----
 // Admin reviews every lead with a recorded sale and marks it successful or rejected.
 
-app.get('/api/sales', requireAuth, requireAdmin, (_req, res) => {
+app.get('/api/sales', requireAuth, requirePermission('salesAudit'), (_req, res) => {
   const sales = listLeads()
     .filter((l) => l.sale)
     .map((l) => ({ leadId: l.id, leadName: l.name, leadPhone: l.phone, owner: l.owner, sale: l.sale }));
   res.json(sales);
 });
 
-app.patch('/api/leads/:id/sale-audit', requireAuth, requireAdmin, (req, res) => {
+app.get('/api/sales/export', requireAuth, requirePermission('exportData'), (_req, res) => {
+  const sales = listLeads().filter((l) => l.sale);
+  const csv = toCsv(
+    ['Lead ID', 'Lead Name', 'Lead Phone', 'Owner', 'Model Range', 'Model SKU', 'Model Colour', 'Amount', 'Quantity', 'Sale Date', 'Sale Source', 'Source Name', 'Accessories', 'Invoice No', 'Audit Status', 'Audit Note'],
+    sales.map((l) => [
+      l.id, l.name || '', l.phone, l.owner || '', l.sale.modelRange, l.sale.modelSku, l.sale.modelColour,
+      l.sale.amount, l.sale.quantity, l.sale.saleDate ? new Date(l.sale.saleDate).toISOString() : '',
+      l.sale.saleSource, l.sale.sourceName || '', (l.sale.accessories || []).join('; '),
+      l.sale.invoiceNo || '', l.sale.auditStatus, l.sale.auditNote || '',
+    ]),
+  );
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename="sales-export-${Date.now()}.csv"`);
+  res.send(csv);
+});
+
+app.patch('/api/leads/:id/sale-audit', requireAuth, requirePermission('salesAudit'), (req, res) => {
   const lead = getLead(req.params.id);
   if (!lead || !lead.sale) return res.status(404).json({ error: 'not found' });
   const { auditStatus, auditNote } = req.body || {};
@@ -485,8 +615,8 @@ app.get('/api/users', requireAuth, (_req, res) => {
   res.json(listUsers().map(sanitizeUser));
 });
 
-app.post('/api/users', requireAuth, requireAdmin, (req, res) => {
-  const { name, email, phone, role } = req.body || {};
+app.post('/api/users', requireAuth, requirePermission('manageUsers'), (req, res) => {
+  const { name, email, phone, role, managerId, hierarchyEnabled, inPool } = req.body || {};
   if (!name) return res.status(400).json({ error: 'name is required' });
   const user = insertUser({
     id: 'U' + nanoid(6).toUpperCase(),
@@ -496,36 +626,39 @@ app.post('/api/users', requireAuth, requireAdmin, (req, res) => {
     role: role || 'Agent',
     password: bcrypt.hashSync(DEFAULT_PASSWORD, 10),
     createdOn: Date.now(),
+    managerId: managerId || null,
+    hierarchyEnabled: !!hierarchyEnabled,
+    inPool: inPool === false ? 0 : 1,
   });
   logAudit(req, 'user.created', user, { email: user.email, role: user.role });
   res.status(201).json(sanitizeUser(user));
 });
 
-app.patch('/api/users/:id', requireAuth, requireAdmin, (req, res) => {
-  const { password, active, tokenVersion, lastLoginDate, ...rest } = req.body || {};
+app.patch('/api/users/:id', requireAuth, requirePermission('manageUsers'), (req, res) => {
+  const { password, active, tokenVersion, lastLoginDate, mustChangePassword, ...rest } = req.body || {};
   const before = getUser(req.params.id);
   const updated = patchUser(req.params.id, rest);
   if (!updated) return res.status(404).json({ error: 'not found' });
   const changed = {};
-  for (const key of ['name', 'email', 'phone', 'role']) {
+  for (const key of ['name', 'email', 'phone', 'role', 'managerId', 'hierarchyEnabled', 'inPool']) {
     if (key in rest && before[key] !== updated[key]) changed[key] = { from: before[key], to: updated[key] };
   }
   if (Object.keys(changed).length) logAudit(req, 'user.updated', updated, changed);
   res.json(sanitizeUser(updated));
 });
 
-app.post('/api/users/:id/reset-password', requireAuth, requireAdmin, (req, res) => {
+app.post('/api/users/:id/reset-password', requireAuth, requirePermission('manageUsers'), (req, res) => {
   const target = getUser(req.params.id);
   if (!target) return res.status(404).json({ error: 'not found' });
   const newPassword = req.body?.password || DEFAULT_PASSWORD;
-  const updated = patchUser(req.params.id, { password: bcrypt.hashSync(newPassword, 10) });
+  const updated = patchUser(req.params.id, { password: bcrypt.hashSync(newPassword, 10), mustChangePassword: true });
   logAudit(req, 'user.password_reset', target, {});
   res.json(sanitizeUser(updated));
 });
 
 // Lead allocation eligibility. Auto-set at login (see /api/auth/login); Admin/Manager
 // can override manually at any time, per the lead allocation spec.
-app.patch('/api/users/:id/active', requireAuth, requireAdminOrManager, (req, res) => {
+app.patch('/api/users/:id/active', requireAuth, requirePermission('toggleUserActive'), (req, res) => {
   const target = getUser(req.params.id);
   if (!target) return res.status(404).json({ error: 'not found' });
   const active = !!req.body?.active;
@@ -534,7 +667,7 @@ app.patch('/api/users/:id/active', requireAuth, requireAdminOrManager, (req, res
   res.json(sanitizeUser(updated));
 });
 
-app.delete('/api/users/:id', requireAuth, requireAdmin, (req, res) => {
+app.delete('/api/users/:id', requireAuth, requirePermission('manageUsers'), (req, res) => {
   const target = getUser(req.params.id);
   if (!target) return res.status(404).json({ error: 'not found' });
   deleteUser(req.params.id);
@@ -544,13 +677,28 @@ app.delete('/api/users/:id', requireAuth, requireAdmin, (req, res) => {
 
 // ---- audit log ----
 
-app.get('/api/audit-log', requireAuth, requireAdmin, (_req, res) => {
+app.get('/api/audit-log', requireAuth, requirePermission('viewAuditLog'), (_req, res) => {
   res.json(listAuditLog());
+});
+
+// ---- permissions (role x permission matrix) ----
+
+// Any logged-in user can read the matrix — the frontend uses it to decide what to show
+// (e.g. an Export button). Only editing it is gated (see PUT below).
+app.get('/api/settings/permissions', requireAuth, (_req, res) => {
+  res.json({ permissions: getSetting('rolePermissions') || DEFAULT_ROLE_PERMISSIONS, keys: PERMISSION_KEYS });
+});
+
+app.put('/api/settings/permissions', requireAuth, requirePermission('managePermissions'), (req, res) => {
+  if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+    return res.status(400).json({ error: 'body must be a { role: { permissionKey: boolean } } object' });
+  }
+  res.json(setSetting('rolePermissions', req.body));
 });
 
 // ---- lead allocation ----
 
-app.get('/api/allocation/status', requireAuth, requireAdminOrManager, (_req, res) => {
+app.get('/api/allocation/status', requireAuth, requirePermission('toggleUserActive'), (_req, res) => {
   const { hour } = istParts();
   res.json({
     poolCount: listLeads().filter((l) => l.owner === 'Unassigned').length,
@@ -562,13 +710,14 @@ app.get('/api/allocation/status', requireAuth, requireAdminOrManager, (_req, res
 
 // Manual override: force-run the pool allocation right now (normally happens automatically
 // at 11:00 AM IST). Admin-only since it affects every unassigned lead at once.
-app.post('/api/allocation/run-pool', requireAuth, requireAdmin, (req, res) => {
+app.post('/api/allocation/run-pool', requireAuth, requirePermission('runAllocationOverride'), (req, res) => {
   const count = allocatePoolLeads();
   logAudit(req, 'allocation.pool_run_manual', null, { count });
   res.json({ count });
 });
 
 startAllocationScheduler();
+startBackupScheduler();
 
 app.listen(PORT, () => {
   console.log(`Lead API listening on http://localhost:${PORT}`);

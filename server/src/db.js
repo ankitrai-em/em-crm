@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import bcrypt from 'bcryptjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { computeLeadScore } from './scoring.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'data.sqlite');
@@ -37,6 +38,22 @@ if (!userColumns.includes('tokenVersion')) {
 }
 if (!userColumns.includes('lastLoginDate')) {
   db.exec("ALTER TABLE users ADD COLUMN lastLoginDate TEXT NOT NULL DEFAULT ''");
+}
+if (!userColumns.includes('managerId')) {
+  db.exec('ALTER TABLE users ADD COLUMN managerId TEXT');
+}
+if (!userColumns.includes('hierarchyEnabled')) {
+  db.exec('ALTER TABLE users ADD COLUMN hierarchyEnabled INTEGER NOT NULL DEFAULT 0');
+}
+if (!userColumns.includes('inPool')) {
+  // Whether this user can receive round-robin leads at all. Defaults to 1 (true) so
+  // existing installs keep their current allocation behavior for everyone.
+  db.exec('ALTER TABLE users ADD COLUMN inPool INTEGER NOT NULL DEFAULT 1');
+}
+if (!userColumns.includes('mustChangePassword')) {
+  // Only forced going forward (new users, password resets) — defaults to 0 so existing
+  // accounts aren't suddenly locked out of the app they're already using.
+  db.exec('ALTER TABLE users ADD COLUMN mustChangePassword INTEGER NOT NULL DEFAULT 0');
 }
 
 const DEFAULT_AGENTS = ['Aditya Narayan', 'Shreya Raj', 'Preeti Vankhede', 'Deep Malakar', 'Dip Roy', 'Shweta Madel', 'Yash Pawar'];
@@ -95,6 +112,16 @@ if (!leadColumns.includes('meta')) {
 if (!leadColumns.includes('disposition')) {
   db.exec("ALTER TABLE leads ADD COLUMN disposition TEXT NOT NULL DEFAULT ''");
   db.exec("ALTER TABLE leads ADD COLUMN subDisposition TEXT NOT NULL DEFAULT ''");
+}
+if (!leadColumns.includes('secondaryPhone')) {
+  db.exec("ALTER TABLE leads ADD COLUMN secondaryPhone TEXT NOT NULL DEFAULT ''");
+}
+if (!leadColumns.includes('buyingFor')) {
+  // Customer profile: who the bike is for, and rider fit/budget info to help pitch the right model.
+  db.exec("ALTER TABLE leads ADD COLUMN buyingFor TEXT NOT NULL DEFAULT ''");
+  db.exec("ALTER TABLE leads ADD COLUMN cyclistWeight TEXT NOT NULL DEFAULT ''");
+  db.exec("ALTER TABLE leads ADD COLUMN cyclistHeight TEXT NOT NULL DEFAULT ''");
+  db.exec("ALTER TABLE leads ADD COLUMN budget TEXT NOT NULL DEFAULT ''");
 }
 
 db.exec(`
@@ -172,6 +199,33 @@ if (getSetting('dispositions') === null) {
   setSetting('dispositions', DEFAULT_DISPOSITIONS);
 }
 
+// Role x permission matrix. Admin implicitly has every permission regardless of what's
+// stored here (enforced in index.js) so Admin can never lock itself out by misconfiguring
+// this. Defaults below mirror the hardcoded Admin/Admin-or-Manager gates the app already
+// had before this became configurable, so behavior doesn't change until someone edits it.
+export const PERMISSION_KEYS = [
+  { key: 'manageUsers', label: 'Manage users (add/edit/remove, reset passwords)' },
+  { key: 'manageIntegrations', label: 'Manage API integrations (telephony, webhook secret)' },
+  { key: 'manageDispositions', label: 'Manage disposition taxonomy' },
+  { key: 'manageDealers', label: 'Manage dealer list (test ride locations)' },
+  { key: 'manageInventory', label: 'Manage inventory' },
+  { key: 'manageAccessories', label: 'Manage accessories' },
+  { key: 'viewAuditLog', label: 'View audit log' },
+  { key: 'salesAudit', label: 'View & audit sales' },
+  { key: 'toggleUserActive', label: 'Toggle user Active/Inactive & view allocation status' },
+  { key: 'runAllocationOverride', label: 'Manually run pool allocation' },
+  { key: 'exportData', label: 'Export leads/sales to CSV' },
+  { key: 'managePermissions', label: 'Edit this permissions matrix' },
+];
+export const DEFAULT_ROLE_PERMISSIONS = {
+  Admin: Object.fromEntries(PERMISSION_KEYS.map((p) => [p.key, true])),
+  Manager: { toggleUserActive: true, exportData: true },
+  Agent: {},
+};
+if (getSetting('rolePermissions') === null) {
+  setSetting('rolePermissions', DEFAULT_ROLE_PERMISSIONS);
+}
+
 export function getSetting(key) {
   const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
   return row ? JSON.parse(row.value) : null;
@@ -205,13 +259,17 @@ export function getUserByEmail(email) {
 
 export function insertUser(user) {
   db.prepare(`
-    INSERT INTO users (id, name, email, phone, role, password, createdOn)
-    VALUES (@id, @name, @email, @phone, @role, @password, @createdOn)
-  `).run(user);
+    INSERT INTO users (id, name, email, phone, role, password, createdOn, managerId, mustChangePassword)
+    VALUES (@id, @name, @email, @phone, @role, @password, @createdOn, @managerId, @mustChangePassword)
+  `).run({ managerId: null, mustChangePassword: 1, ...user });
   return getUser(user.id);
 }
 
-const USER_PATCHABLE = ['name', 'email', 'phone', 'role', 'password', 'active', 'tokenVersion', 'lastLoginDate'];
+const USER_PATCHABLE = [
+  'name', 'email', 'phone', 'role', 'password', 'active', 'tokenVersion', 'lastLoginDate',
+  'managerId', 'hierarchyEnabled', 'inPool', 'mustChangePassword',
+];
+const USER_BOOLEAN_FIELDS = ['active', 'hierarchyEnabled', 'inPool', 'mustChangePassword'];
 
 export function patchUser(id, patch) {
   const existing = getUser(id);
@@ -223,7 +281,7 @@ export function patchUser(id, patch) {
     if (key in merged) {
       sets.push(`${key} = @${key}`);
       let value = merged[key];
-      if (key === 'active') value = value ? 1 : 0;
+      if (USER_BOOLEAN_FIELDS.includes(key)) value = value ? 1 : 0;
       params[key] = value ?? null;
     }
   }
@@ -238,8 +296,44 @@ export function deleteUser(id) {
 // ---- lead allocation (round robin) ----
 
 // Eligible users, in a stable order so the round-robin sequence is deterministic.
+// inPool=0 opts a user out of round-robin entirely (e.g. Managers), regardless of Active status.
 export function listActiveUsers() {
-  return db.prepare('SELECT * FROM users WHERE active = 1 ORDER BY createdOn ASC, id ASC').all();
+  return db.prepare('SELECT * FROM users WHERE active = 1 AND inPool = 1 ORDER BY createdOn ASC, id ASC').all();
+}
+
+// Hierarchy-based lead visibility: if the requesting user has hierarchyEnabled off, there's
+// no restriction (every logged-in user currently sees every lead — kept as the default so
+// nothing changes for accounts that don't opt into hierarchy). If it's on, they can only see
+// their own leads plus leads owned by anyone in their reporting tree (direct + indirect
+// reports, walked via managerId), so a manager-of-managers sees their whole org, not just
+// their immediate team.
+export function getVisibleOwnerNames(userId) {
+  const user = getUser(userId);
+  if (!user || !user.hierarchyEnabled) return null;
+
+  const allUsers = listUsers();
+  const reportsByManager = new Map();
+  for (const u of allUsers) {
+    if (!u.managerId) continue;
+    if (!reportsByManager.has(u.managerId)) reportsByManager.set(u.managerId, []);
+    reportsByManager.get(u.managerId).push(u);
+  }
+
+  const names = new Set([user.name]);
+  const visited = new Set();
+  const queue = [user.id];
+  while (queue.length) {
+    const id = queue.shift();
+    if (visited.has(id)) continue;
+    visited.add(id);
+    for (const report of reportsByManager.get(id) || []) {
+      if (!visited.has(report.id)) {
+        names.add(report.name);
+        queue.push(report.id);
+      }
+    }
+  }
+  return names;
 }
 
 export function bumpAllTokenVersions() {
@@ -275,12 +369,21 @@ export function getLead(id) {
   return rowToLead(db.prepare('SELECT * FROM leads WHERE id = ?').get(id));
 }
 
+// First non-empty-phone match, so repeat submissions of the same number can be merged
+// into the existing lead instead of creating a duplicate row.
+export function findLeadByPhone(phone) {
+  if (!phone) return null;
+  return rowToLead(db.prepare('SELECT * FROM leads WHERE phone = ? ORDER BY createdOn ASC LIMIT 1').get(phone));
+}
+
 export function insertLead(lead) {
+  const leadScore = computeLeadScore(lead);
   db.prepare(`
-    INSERT INTO leads (id, name, phone, email, city, pin, source, campaign, createdOn, owner, stage, leadScore, followupAt, taskDate, reTriggered, attempts, activity, testRide, sale, meta, disposition, subDisposition)
-    VALUES (@id, @name, @phone, @email, @city, @pin, @source, @campaign, @createdOn, @owner, @stage, @leadScore, @followupAt, @taskDate, @reTriggered, @attempts, @activity, @testRide, @sale, @meta, @disposition, @subDisposition)
+    INSERT INTO leads (id, name, phone, email, city, pin, source, campaign, createdOn, owner, stage, leadScore, followupAt, taskDate, reTriggered, attempts, activity, testRide, sale, meta, disposition, subDisposition, secondaryPhone, buyingFor, cyclistWeight, cyclistHeight, budget)
+    VALUES (@id, @name, @phone, @email, @city, @pin, @source, @campaign, @createdOn, @owner, @stage, @leadScore, @followupAt, @taskDate, @reTriggered, @attempts, @activity, @testRide, @sale, @meta, @disposition, @subDisposition, @secondaryPhone, @buyingFor, @cyclistWeight, @cyclistHeight, @budget)
   `).run({
     ...lead,
+    leadScore,
     reTriggered: lead.reTriggered ? 1 : 0,
     activity: JSON.stringify(lead.activity || []),
     testRide: lead.testRide ? JSON.stringify(lead.testRide) : null,
@@ -288,17 +391,29 @@ export function insertLead(lead) {
     meta: JSON.stringify(lead.meta || {}),
     disposition: lead.disposition || '',
     subDisposition: lead.subDisposition || '',
+    secondaryPhone: lead.secondaryPhone || '',
+    buyingFor: lead.buyingFor || '',
+    cyclistWeight: lead.cyclistWeight || '',
+    cyclistHeight: lead.cyclistHeight || '',
+    budget: lead.budget || '',
   });
   return getLead(lead.id);
 }
 
-const PATCHABLE = ['name', 'phone', 'email', 'city', 'pin', 'source', 'campaign', 'owner', 'stage', 'leadScore', 'followupAt', 'taskDate', 'reTriggered', 'attempts', 'testRide', 'sale', 'meta', 'disposition', 'subDisposition'];
+const PATCHABLE = [
+  'name', 'phone', 'email', 'city', 'pin', 'source', 'campaign', 'owner', 'stage', 'leadScore',
+  'followupAt', 'taskDate', 'reTriggered', 'attempts', 'testRide', 'sale', 'meta', 'disposition', 'subDisposition',
+  'secondaryPhone', 'buyingFor', 'cyclistWeight', 'cyclistHeight', 'budget',
+];
 
 export function patchLead(id, patch, newActivityEntry) {
   const existing = getLead(id);
   if (!existing) return null;
 
-  const merged = { ...existing, ...patch };
+  // Recompute automatically so the score always reflects the lead's current state
+  // (source/campaign don't usually change, but disposition, test ride, sale, and
+  // repeat-contact status do, and those all feed into it too).
+  const merged = { ...existing, ...patch, leadScore: computeLeadScore({ ...existing, ...patch }) };
   const activity = newActivityEntry ? [newActivityEntry, ...existing.activity] : existing.activity;
 
   const sets = [];

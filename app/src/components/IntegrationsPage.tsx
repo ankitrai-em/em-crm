@@ -12,8 +12,10 @@ const EMPTY_CONFIG: TelephonyConfig = {
 export function IntegrationsPage() {
   const { state, showToast } = useApp();
   const [config, setConfig] = useState<TelephonyConfig>(EMPTY_CONFIG);
+  const [webhookSecret, setWebhookSecret] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingWebhook, setSavingWebhook] = useState(false);
 
   useEffect(() => {
     api
@@ -21,6 +23,7 @@ export function IntegrationsPage() {
       .then((c) => setConfig({ ...EMPTY_CONFIG, ...c, sarv: { ...EMPTY_CONFIG.sarv, ...c.sarv }, twilio: { ...EMPTY_CONFIG.twilio, ...c.twilio }, exotel: { ...EMPTY_CONFIG.exotel, ...c.exotel } }))
       .catch((err) => showToast('Could not load integration settings: ' + err.message))
       .finally(() => setLoading(false));
+    api.getWebhookSecret().then((c) => setWebhookSecret(c.secret)).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -43,6 +46,24 @@ export function IntegrationsPage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const saveWebhookSecret = async () => {
+    setSavingWebhook(true);
+    try {
+      const saved = await api.saveWebhookSecret(webhookSecret);
+      setWebhookSecret(saved.secret);
+      showToast(saved.secret ? 'Webhook secret saved' : 'Webhook secret cleared — the webhook is now open');
+    } catch (err) {
+      showToast('Could not save: ' + (err as Error).message);
+    } finally {
+      setSavingWebhook(false);
+    }
+  };
+
+  const generateSecret = () => {
+    const bytes = crypto.getRandomValues(new Uint8Array(24));
+    setWebhookSecret(Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join(''));
   };
 
   if (loading) return null;
@@ -103,6 +124,30 @@ export function IntegrationsPage() {
         >
           {saving ? 'Saving…' : 'Save'}
         </button>
+      </div>
+
+      <div style={{ padding: 22, borderRadius: 'var(--radius-lg)', background: 'var(--color-surface)', boxShadow: 'var(--shadow-lg)', maxWidth: 560, marginTop: 24 }}>
+        <h4 style={{ margin: '0 0 4px' }}>Webhook Security</h4>
+        <p style={{ margin: '0 0 16px', fontSize: 12, color: 'var(--color-neutral-600)' }}>
+          Protects <code>/api/leads/webhook</code> — the public endpoint your website posts leads to. When set, every request must include the header{' '}
+          <code>X-Webhook-Secret</code> with this value, or it's rejected. Leave blank to keep the webhook open (today's default).
+        </p>
+        <Field label="Webhook secret" value={webhookSecret} onChange={setWebhookSecret} />
+        <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+          <button
+            onClick={saveWebhookSecret}
+            disabled={savingWebhook}
+            style={{ background: 'var(--color-accent)', color: 'var(--color-bg)', border: '1px solid transparent', borderRadius: 'var(--radius-md)', padding: '9px 16px', fontFamily: 'var(--font-heading)', fontWeight: 600, fontSize: 13, cursor: savingWebhook ? 'default' : 'pointer', opacity: savingWebhook ? 0.7 : 1 }}
+          >
+            {savingWebhook ? 'Saving…' : 'Save'}
+          </button>
+          <button
+            onClick={generateSecret}
+            style={{ background: 'transparent', color: 'var(--color-text)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-md)', padding: '9px 16px', fontSize: 13, cursor: 'pointer' }}
+          >
+            Generate random
+          </button>
+        </div>
       </div>
     </div>
   );

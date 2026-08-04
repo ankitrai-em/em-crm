@@ -15,7 +15,7 @@ export function LeadImportPage() {
     try {
       const res = await api.importLeads(file);
       setResult(res);
-      showToast(`Imported ${res.created} lead${res.created === 1 ? '' : 's'}`);
+      showToast(`Imported ${res.created} lead${res.created === 1 ? '' : 's'}${res.merged ? `, merged ${res.merged} repeat${res.merged === 1 ? '' : 's'}` : ''}`);
       refreshLeads();
     } catch (err) {
       showToast('Import failed: ' + (err as Error).message);
@@ -51,7 +51,10 @@ export function LeadImportPage() {
 
         {result && (
           <div style={{ marginTop: 20, fontSize: 13 }}>
-            <p style={{ fontWeight: 600, color: 'var(--color-accent-700)' }}>{result.created} lead{result.created === 1 ? '' : 's'} created.</p>
+            <p style={{ fontWeight: 600, color: 'var(--color-accent-700)' }}>
+              {result.created} lead{result.created === 1 ? '' : 's'} created.
+              {result.merged > 0 && ` ${result.merged} repeat submission${result.merged === 1 ? '' : 's'} merged into existing leads.`}
+            </p>
             {result.errors.length > 0 && (
               <>
                 <p style={{ fontWeight: 600, color: 'var(--color-accent-2-700)', marginBottom: 6 }}>

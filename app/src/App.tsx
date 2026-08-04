@@ -18,6 +18,8 @@ import { AccessoriesPage } from './components/AccessoriesPage';
 import { SalesAuditPage } from './components/SalesAuditPage';
 import { DispositionsPage } from './components/DispositionsPage';
 import { LeadImportPage } from './components/LeadImportPage';
+import { PermissionsPage } from './components/PermissionsPage';
+import { ChangePasswordModal } from './components/modals/ChangePasswordModal';
 
 function Screen() {
   const { state } = useApp();
@@ -32,10 +34,22 @@ function Screen() {
   if (state.view === 'accessories') return <AccessoriesPage />;
   if (state.view === 'sales-audit') return <SalesAuditPage />;
   if (state.view === 'dispositions') return <DispositionsPage />;
+  if (state.view === 'permissions') return <PermissionsPage />;
   return <LeadDetail />;
 }
 
 function AppShell() {
+  const { state } = useApp();
+  // Blocks the rest of the app until a forced password change (new account, or after an
+  // Admin reset) is done — no way to dismiss it other than actually changing the password.
+  if (state.currentUser?.mustChangePassword) {
+    return (
+      <div style={{ minHeight: '100vh', background: 'var(--color-bg)', color: 'var(--color-text)', fontFamily: 'var(--font-body)' }}>
+        <Toast />
+        <ChangePasswordModal forced />
+      </div>
+    );
+  }
   return (
     <div style={{ minHeight: '100vh', background: 'var(--color-bg)', color: 'var(--color-text)', fontFamily: 'var(--font-body)' }}>
       <Nav />

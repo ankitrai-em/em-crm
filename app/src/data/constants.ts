@@ -20,12 +20,6 @@ export const CITY_LIST = ['Chennai', 'Bengaluru', 'Ludhiana', 'Noida', 'Ernakula
 
 export const ROLE_LIST: Role[] = ['Admin', 'Manager', 'Agent'];
 
-export const ROLE_PERMISSIONS: Record<Role, string[]> = {
-  Admin: ['Manage users', 'Manage all leads', 'Reassign leads', 'View reports'],
-  Manager: ['Manage all leads', 'Reassign leads', 'View reports'],
-  Agent: ['Manage own leads'],
-};
-
 export function getStage(id: number): StageInfo {
   return STAGES[id as StageId] || STAGES[1];
 }

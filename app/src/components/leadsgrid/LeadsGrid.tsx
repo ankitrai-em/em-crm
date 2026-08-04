@@ -22,11 +22,13 @@ export function LeadsGrid() {
     setDateRange,
     clearDateRange,
     setRtOnly,
+    exportLeadsCsv,
     STAGE_ORDER,
     SOURCE_LIST,
     CITY_LIST,
     AGENT_LIST,
   } = useApp();
+  const canExport = state.currentUser?.role === 'Admin' || !!state.rolePermissions?.[state.currentUser?.role as 'Manager' | 'Agent']?.exportData;
 
   const totalPages = Math.max(1, Math.ceil(filteredLeads.length / state.pageSize));
   const page = Math.min(state.page, totalPages);
@@ -90,6 +92,14 @@ export function LeadsGrid() {
         </div>
 
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 12, alignSelf: 'flex-end' }}>
+          {canExport && (
+            <button
+              style={{ background: 'transparent', color: 'var(--color-text)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-md)', padding: '9px 16px', fontFamily: 'var(--font-heading)', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}
+              onClick={exportLeadsCsv}
+            >
+              ↓ Export CSV
+            </button>
+          )}
           <button
             style={{ background: 'transparent', color: 'var(--color-text)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-md)', padding: '9px 16px', fontFamily: 'var(--font-heading)', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}
             onClick={openQuickAdd}
@@ -248,7 +258,7 @@ export function LeadsGrid() {
                 <td style={cellStyle}>
                   {l.reTriggered && (
                     <span style={{ display: 'inline-flex', fontSize: 10, fontWeight: 700, letterSpacing: '.03em', padding: '3px 8px', borderRadius: 3, border: '1px solid var(--color-accent-2)', color: 'var(--color-accent-2-700)' }}>
-                      RT
+                      Repeat User
                     </span>
                   )}
                 </td>

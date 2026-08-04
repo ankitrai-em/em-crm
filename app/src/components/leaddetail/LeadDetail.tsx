@@ -8,10 +8,11 @@ import { TestRideCard } from './TestRideCard';
 import { SaleCard } from './SaleCard';
 import { ActivityFeed } from './ActivityFeed';
 import { ContactEditModal } from '../modals/ContactEditModal';
+import { CustomerProfileModal } from '../modals/CustomerProfileModal';
 import type { StageId } from '../../types';
 
 export function LeadDetail() {
-  const { state, backToLeads, callLead, manualStageChange, openEditContact } = useApp();
+  const { state, backToLeads, callLead, manualStageChange, openEditContact, openEditCustomerProfile } = useApp();
   const lead = state.leads.find((l) => l.id === state.selectedId);
   if (!lead) return null;
 
@@ -37,7 +38,7 @@ export function LeadDetail() {
               <span style={{ display: 'inline-flex', fontSize: 11, padding: '3px 10px', borderRadius: 3, background: st.bg, color: st.color }}>{st.label}</span>
               {lead.reTriggered && (
                 <span style={{ display: 'inline-flex', marginLeft: 6, fontSize: 10, fontWeight: 700, letterSpacing: '.03em', padding: '3px 8px', borderRadius: 3, border: '1px solid var(--color-accent-2)', color: 'var(--color-accent-2-700)' }}>
-                  RT
+                  Repeat User
                 </span>
               )}
               {lead.disposition && (
@@ -61,6 +62,15 @@ export function LeadDetail() {
                   Call
                 </button>
               </div>
+              {lead.secondaryPhone && (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <span style={{ color: 'var(--color-accent-700)', flex: 'none' }}>
+                    <PhoneIcon size={15} />
+                  </span>
+                  {lead.secondaryPhone}
+                  <span style={{ fontSize: 11, color: 'var(--color-neutral-600)' }}>(secondary)</span>
+                </div>
+              )}
               <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                 <span style={{ color: 'var(--color-accent-700)', flex: 'none' }}>
                   <MailIcon size={15} />
@@ -96,6 +106,22 @@ export function LeadDetail() {
           </div>
 
           <div style={{ background: 'var(--color-surface)', borderRadius: 'var(--radius-md)', padding: 22, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h5 style={{ margin: 0 }}>Customer Profile</h5>
+              <button
+                style={{ background: 'transparent', color: 'var(--color-accent-700)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-md)', padding: '5px 10px', fontSize: 12, cursor: 'pointer' }}
+                onClick={() => openEditCustomerProfile(lead.id)}
+              >
+                Edit
+              </button>
+            </div>
+            <PropertyRow label="Buying for" value={lead.buyingFor || '—'} />
+            <PropertyRow label="Cyclist weight" value={lead.cyclistWeight ? `${lead.cyclistWeight} kg` : '—'} />
+            <PropertyRow label="Cyclist height" value={lead.cyclistHeight ? `${lead.cyclistHeight} cm` : '—'} />
+            <PropertyRow label="Budget" value={lead.budget ? `₹${lead.budget}` : '—'} />
+          </div>
+
+          <div style={{ background: 'var(--color-surface)', borderRadius: 'var(--radius-md)', padding: 22, display: 'flex', flexDirection: 'column', gap: 10 }}>
             <label style={{ display: 'block', fontSize: 11, color: 'color-mix(in srgb, var(--color-text) 70%, transparent)' }}>Adjust stage manually</label>
             <select
               value={lead.stage}
@@ -120,6 +146,7 @@ export function LeadDetail() {
         </div>
       </div>
       <ContactEditModal />
+      <CustomerProfileModal />
     </div>
   );
 }

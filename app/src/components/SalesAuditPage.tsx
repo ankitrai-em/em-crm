@@ -3,8 +3,9 @@ import { useApp } from '../store/AppStore';
 import { formatDate } from '../data/format';
 
 export function SalesAuditPage() {
-  const { state, auditSale, openLead } = useApp();
+  const { state, auditSale, openLead, exportSalesCsv } = useApp();
   const [noteDrafts, setNoteDrafts] = useState<Record<string, string>>({});
+  const canExport = state.currentUser?.role === 'Admin' || !!state.rolePermissions?.[state.currentUser?.role as 'Manager' | 'Agent']?.exportData;
 
   const sales = useMemo(() => state.leads.filter((l) => l.sale).sort((a, b) => (b.sale!.saleDate || 0) - (a.sale!.saleDate || 0)), [state.leads]);
 
@@ -18,7 +19,17 @@ export function SalesAuditPage() {
 
   return (
     <div style={{ padding: '12px 48px 40px' }} data-screen-label="Sales Audit">
-      <h2 style={{ margin: '0 0 20px' }}>Sales Audit</h2>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+        <h2 style={{ margin: 0 }}>Sales Audit</h2>
+        {canExport && (
+          <button
+            style={{ background: 'transparent', color: 'var(--color-text)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-md)', padding: '9px 16px', fontFamily: 'var(--font-heading)', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}
+            onClick={exportSalesCsv}
+          >
+            ↓ Export CSV
+          </button>
+        )}
+      </div>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
         <thead>
           <tr>

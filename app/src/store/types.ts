@@ -1,4 +1,4 @@
-import type { Accessory, CallForm, ContactEditForm, Disposition, FilterKey, InventoryItem, Lead, SaleForm, TestRideForm, User, UserForm, View } from '../types';
+import type { Accessory, CallForm, ContactEditForm, CustomerProfileForm, Disposition, FilterKey, InventoryItem, Lead, PermissionKey, RolePermissions, SaleForm, TestRideForm, User, UserForm, View } from '../types';
 import { NOW } from '../data/constants';
 import { toDateInputValue } from '../data/format';
 
@@ -50,6 +50,7 @@ export interface AppState {
   testRideForm: TestRideForm;
   saleForm: SaleForm;
   contactForm: ContactEditForm;
+  customerProfileForm: CustomerProfileForm;
   followupDraft: string;
   toast: string;
   leads: Lead[];
@@ -68,6 +69,13 @@ export interface AppState {
   accessories: Accessory[];
   inventoryForm: InventoryForm;
   accessoryForm: AccessoryForm;
+  rolePermissions: RolePermissions | null;
+  permissionKeys: PermissionKey[];
+  changePasswordCurrent: string;
+  changePasswordNew: string;
+  changePasswordConfirm: string;
+  changePasswordError: string;
+  changePasswordBusy: boolean;
 }
 
 export const emptyCallForm: CallForm = { open: false, dispositionId: '', subDispositionId: '', duration: '', remarks: '' };
@@ -76,8 +84,9 @@ export const emptySaleForm: SaleForm = {
   open: false, docs: 'no', invoiceNo: '', amount: '', inventoryId: '', saleDate: '', quantity: '1',
   saleSource: 'D2C', sourceName: '', accessories: [], fileName: '', fileUrl: '', uploading: false,
 };
-export const emptyUserForm: UserForm = { open: false, editingId: null, name: '', email: '', phone: '', role: 'Agent' };
-export const emptyContactForm: ContactEditForm = { open: false, name: '', phone: '', email: '', pin: '' };
+export const emptyUserForm: UserForm = { open: false, editingId: null, name: '', email: '', phone: '', role: 'Agent', managerId: '', hierarchyEnabled: false, inPool: true };
+export const emptyContactForm: ContactEditForm = { open: false, name: '', phone: '', secondaryPhone: '', email: '', pin: '' };
+export const emptyCustomerProfileForm: CustomerProfileForm = { open: false, buyingFor: '', cyclistWeight: '', cyclistHeight: '', budget: '' };
 export const emptyInventoryForm: InventoryForm = { open: false, editingId: null, modelRange: '', modelSku: '', modelColour: '' };
 export const emptyAccessoryForm: AccessoryForm = { open: false, name: '' };
 
@@ -117,6 +126,7 @@ export function initialState(leads: Lead[]): AppState {
     testRideForm: emptyTestRideForm,
     saleForm: emptySaleForm,
     contactForm: emptyContactForm,
+    customerProfileForm: emptyCustomerProfileForm,
     followupDraft: '',
     toast: '',
     leads,
@@ -135,5 +145,12 @@ export function initialState(leads: Lead[]): AppState {
     accessories: [],
     inventoryForm: emptyInventoryForm,
     accessoryForm: emptyAccessoryForm,
+    rolePermissions: null,
+    permissionKeys: [],
+    changePasswordCurrent: '',
+    changePasswordNew: '',
+    changePasswordConfirm: '',
+    changePasswordError: '',
+    changePasswordBusy: false,
   };
 }

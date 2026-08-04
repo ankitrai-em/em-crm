@@ -11,6 +11,7 @@ export function ContactEditModal() {
         <h4 style={{ margin: 0 }}>Edit Contact Info</h4>
         <Field label="Name" value={form.name} onChange={(v) => updateContactForm({ name: v })} />
         <Field label="Phone number" value={form.phone} onChange={(v) => updateContactForm({ phone: v })} />
+        <Field label="Secondary phone number" value={form.secondaryPhone} onChange={(v) => updateContactForm({ secondaryPhone: v })} />
         <Field label="Email" value={form.email} onChange={(v) => updateContactForm({ email: v })} />
         <Field label="Pincode" value={form.pin} onChange={(v) => updateContactForm({ pin: v })} />
         <p style={{ margin: 0, fontSize: 12, color: 'var(--color-neutral-600)' }}>Changes are recorded in this lead's Activity feed with the old and new values.</p>

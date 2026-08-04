@@ -1,10 +1,10 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { ActivityEntry, Dealer, FilterKey, Lead, Role, StageId, User } from '../types';
-import { CITY_LIST, NOW, ROLE_LIST, ROLE_PERMISSIONS, SOURCE_LIST, STAGE_ORDER, getStage } from '../data/constants';
+import type { ActivityEntry, Dealer, FilterKey, Lead, RolePermissions, Role, StageId, User } from '../types';
+import { CITY_LIST, NOW, ROLE_LIST, SOURCE_LIST, STAGE_ORDER, getStage } from '../data/constants';
 import { formatDateTime, parseDuration } from '../data/format';
 import { api, auth } from '../lib/api';
 import type { AppState } from './types';
-import { emptyAccessoryForm, emptyCallForm, emptyContactForm, emptyInventoryForm, emptySaleForm, emptyTestRideForm, emptyUserForm, initialState } from './types';
+import { emptyAccessoryForm, emptyCallForm, emptyContactForm, emptyCustomerProfileForm, emptyInventoryForm, emptySaleForm, emptyTestRideForm, emptyUserForm, initialState } from './types';
 
 type Patch = Partial<AppState> | ((s: AppState) => Partial<AppState>);
 
@@ -29,6 +29,7 @@ function useProviderValue() {
     api.getDispositions().then((dispositions) => setStateRaw((s) => ({ ...s, dispositions }))).catch((err) => showToast('Could not load dispositions: ' + err.message));
     api.listInventory().then((inventory) => setStateRaw((s) => ({ ...s, inventory }))).catch((err) => showToast('Could not load inventory: ' + err.message));
     api.listAccessories().then((accessories) => setStateRaw((s) => ({ ...s, accessories }))).catch((err) => showToast('Could not load accessories: ' + err.message));
+    api.getPermissions().then(({ permissions, keys }) => setStateRaw((s) => ({ ...s, rolePermissions: permissions, permissionKeys: keys }))).catch(() => {});
   };
 
   useEffect(() => {
@@ -119,6 +120,7 @@ function useProviderValue() {
   const goAccessories = () => setState({ view: 'accessories' });
   const goSalesAudit = () => setState({ view: 'sales-audit' });
   const goDispositions = () => setState({ view: 'dispositions' });
+  const goPermissions = () => setState({ view: 'permissions' });
   const backToLeads = () => setState({ view: 'leads' });
   const openLead = (id: string) =>
     setState({
@@ -128,6 +130,7 @@ function useProviderValue() {
       testRideForm: emptyTestRideForm,
       saleForm: emptySaleForm,
       contactForm: emptyContactForm,
+      customerProfileForm: emptyCustomerProfileForm,
       followupDraft: '',
     });
 
@@ -224,26 +227,44 @@ function useProviderValue() {
   const openEditContact = (id: string) => {
     const lead = state.leads.find((l) => l.id === id);
     if (!lead) return;
-    setState({ contactForm: { open: true, name: lead.name || '', phone: lead.phone, email: lead.email, pin: lead.pin } });
+    setState({ contactForm: { open: true, name: lead.name || '', phone: lead.phone, secondaryPhone: lead.secondaryPhone || '', email: lead.email, pin: lead.pin } });
   };
   const closeContactForm = () => setState({ contactForm: emptyContactForm });
   const updateContactForm = (patch: Partial<AppState['contactForm']>) => setState((s) => ({ contactForm: { ...s.contactForm, ...patch } }));
   const saveContactEdit = async () => {
     const lead = state.leads.find((l) => l.id === state.selectedId);
     if (!lead) return;
-    const { name, phone, email, pin } = state.contactForm;
+    const { name, phone, secondaryPhone, email, pin } = state.contactForm;
     const changes: string[] = [];
     if (name !== (lead.name || '')) changes.push(`name '${lead.name || '—'}' → '${name || '—'}'`);
     if (phone !== lead.phone) changes.push(`phone '${lead.phone || '—'}' → '${phone || '—'}'`);
+    if (secondaryPhone !== (lead.secondaryPhone || '')) changes.push(`secondary phone '${lead.secondaryPhone || '—'}' → '${secondaryPhone || '—'}'`);
     if (email !== lead.email) changes.push(`email '${lead.email || '—'}' → '${email || '—'}'`);
     if (pin !== lead.pin) changes.push(`pincode '${lead.pin || '—'}' → '${pin || '—'}'`);
     if (!changes.length) {
       setState({ contactForm: emptyContactForm });
       return;
     }
-    await updateLead(lead.id, { name, phone, email, pin }, `Contact info updated by ${state.currentUser?.name || 'Unknown'}: ${changes.join('; ')}`);
+    await updateLead(lead.id, { name, phone, secondaryPhone, email, pin }, `Contact info updated by ${state.currentUser?.name || 'Unknown'}: ${changes.join('; ')}`);
     setState({ contactForm: emptyContactForm });
     showToast('Contact info updated');
+  };
+
+  // ---- customer profile (buying for / cyclist fit / budget) ----
+  const openEditCustomerProfile = (id: string) => {
+    const lead = state.leads.find((l) => l.id === id);
+    if (!lead) return;
+    setState({ customerProfileForm: { open: true, buyingFor: lead.buyingFor || '', cyclistWeight: lead.cyclistWeight || '', cyclistHeight: lead.cyclistHeight || '', budget: lead.budget || '' } });
+  };
+  const closeCustomerProfileForm = () => setState({ customerProfileForm: emptyCustomerProfileForm });
+  const updateCustomerProfileForm = (patch: Partial<AppState['customerProfileForm']>) => setState((s) => ({ customerProfileForm: { ...s.customerProfileForm, ...patch } }));
+  const saveCustomerProfile = async () => {
+    const lead = state.leads.find((l) => l.id === state.selectedId);
+    if (!lead) return;
+    const { buyingFor, cyclistWeight, cyclistHeight, budget } = state.customerProfileForm;
+    await updateLead(lead.id, { buyingFor, cyclistWeight, cyclistHeight, budget }, `Customer profile updated by ${state.currentUser?.name || 'Unknown'}`);
+    setState({ customerProfileForm: emptyCustomerProfileForm });
+    showToast('Customer profile updated');
   };
 
   // ---- follow-up ----
@@ -423,23 +444,28 @@ function useProviderValue() {
   const openEditUser = (id: string) => {
     const user = state.users.find((u) => u.id === id);
     if (!user) return;
-    setState({ userForm: { open: true, editingId: id, name: user.name, email: user.email, phone: user.phone, role: user.role } });
+    setState({
+      userForm: {
+        open: true, editingId: id, name: user.name, email: user.email, phone: user.phone, role: user.role,
+        managerId: user.managerId || '', hierarchyEnabled: user.hierarchyEnabled, inPool: user.inPool,
+      },
+    });
   };
   const closeUserForm = () => setState({ userForm: emptyUserForm });
-  const updateUserForm = (patch: Partial<User> & { role?: Role }) => setState((s) => ({ userForm: { ...s.userForm, ...patch } }));
+  const updateUserForm = (patch: Partial<AppState['userForm']>) => setState((s) => ({ userForm: { ...s.userForm, ...patch } }));
   const submitUserForm = async () => {
-    const { editingId, name, email, phone, role } = state.userForm;
+    const { editingId, name, email, phone, role, managerId, hierarchyEnabled, inPool } = state.userForm;
     if (!name) {
       showToast('Name is required');
       return;
     }
     try {
       if (editingId) {
-        const updated = await api.patchUser(editingId, { name, email, phone, role });
+        const updated = await api.patchUser(editingId, { name, email, phone, role, managerId: managerId || null, hierarchyEnabled, inPool });
         setState((s) => ({ users: s.users.map((u) => (u.id === editingId ? updated : u)), userForm: emptyUserForm }));
         showToast('User updated');
       } else {
-        const created = await api.createUser({ name, email, phone, role });
+        const created = await api.createUser({ name, email, phone, role, managerId: managerId || null, hierarchyEnabled, inPool });
         setState((s) => ({ users: [...s.users, created], userForm: emptyUserForm }));
         showToast('User added');
       }
@@ -565,6 +591,79 @@ function useProviderValue() {
     }
   };
 
+  // ---- permissions (Admin) ----
+  const loadPermissions = async () => {
+    try {
+      const { permissions, keys } = await api.getPermissions();
+      setState({ rolePermissions: permissions, permissionKeys: keys });
+    } catch (err) {
+      showToast('Could not load permissions: ' + (err as Error).message);
+    }
+  };
+  const togglePermission = (role: Role, key: string) => {
+    setState((s) => {
+      if (!s.rolePermissions) return {};
+      const rolePerms = s.rolePermissions[role] || {};
+      return { rolePermissions: { ...s.rolePermissions, [role]: { ...rolePerms, [key]: !rolePerms[key] } } };
+    });
+  };
+  const savePermissions = async () => {
+    if (!state.rolePermissions) return;
+    try {
+      const saved = await api.savePermissions(state.rolePermissions);
+      setState({ rolePermissions: saved });
+      showToast('Permissions saved');
+    } catch (err) {
+      showToast('Could not save permissions: ' + (err as Error).message);
+    }
+  };
+
+  // ---- export ----
+  const exportLeadsCsv = async () => {
+    try {
+      await api.exportLeads();
+    } catch (err) {
+      showToast('Export failed: ' + (err as Error).message);
+    }
+  };
+  const exportSalesCsv = async () => {
+    try {
+      await api.exportSales();
+    } catch (err) {
+      showToast('Export failed: ' + (err as Error).message);
+    }
+  };
+
+  // ---- change password (self-service; forced on first login / after a reset) ----
+  const updateChangePasswordField = (field: 'changePasswordCurrent' | 'changePasswordNew' | 'changePasswordConfirm', value: string) =>
+    setState({ [field]: value, changePasswordError: '' } as Partial<AppState>);
+  const submitChangePassword = async () => {
+    const { changePasswordCurrent, changePasswordNew, changePasswordConfirm } = state;
+    if (!changePasswordCurrent || !changePasswordNew) {
+      setState({ changePasswordError: 'Both current and new password are required' });
+      return;
+    }
+    if (changePasswordNew.length < 8) {
+      setState({ changePasswordError: 'New password must be at least 8 characters' });
+      return;
+    }
+    if (changePasswordNew !== changePasswordConfirm) {
+      setState({ changePasswordError: 'New password and confirmation do not match' });
+      return;
+    }
+    setState({ changePasswordBusy: true, changePasswordError: '' });
+    try {
+      const updated = await api.changePassword(changePasswordCurrent, changePasswordNew);
+      setState({
+        currentUser: updated, changePasswordBusy: false,
+        changePasswordCurrent: '', changePasswordNew: '', changePasswordConfirm: '', changePasswordError: '',
+      });
+      showToast('Password updated');
+    } catch (err) {
+      setState({ changePasswordBusy: false, changePasswordError: (err as Error).message });
+    }
+  };
+
   return {
     state,
     setState,
@@ -583,6 +682,7 @@ function useProviderValue() {
     goAccessories,
     goSalesAudit,
     goDispositions,
+    goPermissions,
     backToLeads,
     openLead,
     setSearch,
@@ -610,6 +710,10 @@ function useProviderValue() {
     closeContactForm,
     updateContactForm,
     saveContactEdit,
+    openEditCustomerProfile,
+    closeCustomerProfileForm,
+    updateCustomerProfileForm,
+    saveCustomerProfile,
     updateFollowupDraft,
     saveFollowup,
     openCallForm,
@@ -656,13 +760,19 @@ function useProviderValue() {
     updateAccessoryForm,
     submitAccessoryForm,
     removeAccessory,
+    loadPermissions,
+    togglePermission,
+    savePermissions,
+    exportLeadsCsv,
+    exportSalesCsv,
+    updateChangePasswordField,
+    submitChangePassword,
     // static reference lists
     STAGE_ORDER,
     SOURCE_LIST,
     CITY_LIST,
     AGENT_LIST,
     ROLE_LIST,
-    ROLE_PERMISSIONS,
   };
 }
 
