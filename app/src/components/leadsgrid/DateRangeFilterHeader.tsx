@@ -1,6 +1,7 @@
 import type { FilterKey } from '../../types';
 import { filterHeaderBg } from '../../data/format';
 import { useApp } from '../../store/AppStore';
+import { useClickOutside } from '../../hooks/useClickOutside';
 
 interface Props {
   label: string;
@@ -15,11 +16,12 @@ interface Props {
 }
 
 export function DateRangeFilterHeader({ label, filterKey, from, to, onFromChange, onToChange, caption, hasActive, onClear }: Props) {
-  const { state, toggleFilterPopover } = useApp();
+  const { state, toggleFilterPopover, closeFilterPopover } = useApp();
   const isOpen = state.openFilter === filterKey;
+  const ref = useClickOutside<HTMLTableCellElement>(closeFilterPopover, isOpen);
 
   return (
-    <th style={{ textAlign: 'left', fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase', color: 'color-mix(in srgb, var(--color-text) 60%, transparent)', padding: 10, borderBottom: '1px solid var(--color-divider)', position: 'relative' }}>
+    <th ref={ref} style={{ textAlign: 'left', fontSize: 11, letterSpacing: '.08em', textTransform: 'uppercase', color: 'color-mix(in srgb, var(--color-text) 60%, transparent)', padding: 10, borderBottom: '1px solid var(--color-divider)', position: 'relative' }}>
       <span
         style={{ cursor: 'pointer', userSelect: 'none', display: 'inline-block', padding: '2px 6px', borderRadius: 3, background: filterHeaderBg(hasActive) }}
         onClick={() => toggleFilterPopover(filterKey)}

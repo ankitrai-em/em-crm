@@ -143,6 +143,7 @@ function useProviderValue() {
   };
   const clearDateRange = (key: 'created' | 'followup' | 'task') => setDateRange(key, '', '');
   const toggleFilterPopover = (key: FilterKey) => setState((s) => ({ openFilter: s.openFilter === key ? null : key }));
+  const closeFilterPopover = () => setState({ openFilter: null });
   const toggleArrayFilter = (key: 'stageFilter' | 'sourceFilter' | 'cityFilter' | 'ownerFilter', value: string) =>
     setState((s) => {
       const arr = s[key];
@@ -697,6 +698,7 @@ function useProviderValue() {
     setDateRange,
     clearDateRange,
     toggleFilterPopover,
+    closeFilterPopover,
     toggleArrayFilter,
     clearArrayFilter,
     setRtOnly,

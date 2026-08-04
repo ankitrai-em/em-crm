@@ -1,11 +1,14 @@
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useApp } from '../store/AppStore';
 import { initials } from '../data/format';
+import { useClickOutside } from '../hooks/useClickOutside';
 import type { View } from '../types';
 
 export function Nav() {
   const { state, goDashboard, goLeads, goImportLeads, goUsers, goInventory, goAccessories, goIntegrations, goDispositions, goDealers, goAuditLog, goSalesAudit, goPermissions, logout } = useApp();
   const [adminOpen, setAdminOpen] = useState(false);
+  const closeAdminMenu = useCallback(() => setAdminOpen(false), []);
+  const adminMenuRef = useClickOutside<HTMLDivElement>(closeAdminMenu, adminOpen);
   const view = state.view;
   const user = state.currentUser;
   const isAdmin = user?.role === 'Admin';
@@ -42,7 +45,7 @@ export function Nav() {
           Accessories
         </a>
         {isAdmin && (
-          <div style={{ position: 'relative' }}>
+          <div ref={adminMenuRef} style={{ position: 'relative' }}>
             <a href="#" style={linkStyle(adminActive)} onClick={(e) => { e.preventDefault(); setAdminOpen((o) => !o); }}>
               Admin ▾
             </a>

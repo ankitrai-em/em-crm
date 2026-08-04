@@ -630,12 +630,21 @@ app.get('/api/sales/export', requireAuth, requirePermission('exportData'), (_req
   res.send(csv);
 });
 
+// Stage 7 = Sale Completed (No Docs) -> 9 = ...and Audited (No Docs); 8 = Sale Completed
+// (With Docs) -> 10 = ...and Audited (With Docs). Only a successful audit advances the
+// stage — a rejected one leaves it where it was, since the sale wasn't actually validated.
+const AUDITED_STAGE_BY_SALE_STAGE = { 7: 9, 8: 10 };
+
 app.patch('/api/leads/:id/sale-audit', requireAuth, requirePermission('salesAudit'), (req, res) => {
   const lead = getLead(req.params.id);
   if (!lead || !lead.sale) return res.status(404).json({ error: 'not found' });
   const { auditStatus, auditNote } = req.body || {};
   if (!['successful', 'rejected'].includes(auditStatus)) return res.status(400).json({ error: 'auditStatus must be "successful" or "rejected"' });
-  const updated = patchLead(lead.id, { sale: { ...lead.sale, auditStatus, auditNote: auditNote || '' } }, {
+  const patch = { sale: { ...lead.sale, auditStatus, auditNote: auditNote || '' } };
+  if (auditStatus === 'successful' && AUDITED_STAGE_BY_SALE_STAGE[lead.stage]) {
+    patch.stage = AUDITED_STAGE_BY_SALE_STAGE[lead.stage];
+  }
+  const updated = patchLead(lead.id, patch, {
     ts: Date.now(),
     kind: 'note',
     text: `Sale audit: marked ${auditStatus}${auditNote ? ' — ' + auditNote : ''}`,
