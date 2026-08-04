@@ -11,6 +11,19 @@ cp .env.example .env
 npm run dev        # http://localhost:8787
 ```
 
+### Test
+
+```bash
+npm test            # runs server/test/*.test.js via Node's built-in test runner
+```
+
+### Deploying
+
+See [`DEPLOYMENT.md`](../DEPLOYMENT.md) at the repo root for a full AWS EC2 walkthrough
+(env vars, PM2, nginx, TLS, backups). At minimum, production needs `NODE_ENV=production`,
+a real `JWT_SECRET`, and `CORS_ORIGIN` set in `.env` — the app deliberately refuses to start
+without a `JWT_SECRET` when `NODE_ENV=production`.
+
 ### Endpoints
 
 | Method | Path                    | Purpose                                                              |

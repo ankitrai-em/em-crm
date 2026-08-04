@@ -329,10 +329,15 @@ export function getUserByEmail(email) {
 }
 
 export function insertUser(user) {
+  const merged = { managerId: null, mustChangePassword: 1, hierarchyEnabled: 0, inPool: 1, ...user };
   db.prepare(`
-    INSERT INTO users (id, name, email, phone, role, password, createdOn, managerId, mustChangePassword)
-    VALUES (@id, @name, @email, @phone, @role, @password, @createdOn, @managerId, @mustChangePassword)
-  `).run({ managerId: null, mustChangePassword: 1, ...user });
+    INSERT INTO users (id, name, email, phone, role, password, createdOn, managerId, mustChangePassword, hierarchyEnabled, inPool)
+    VALUES (@id, @name, @email, @phone, @role, @password, @createdOn, @managerId, @mustChangePassword, @hierarchyEnabled, @inPool)
+  `).run({
+    ...merged,
+    hierarchyEnabled: merged.hierarchyEnabled ? 1 : 0,
+    inPool: merged.inPool === false || merged.inPool === 0 ? 0 : 1,
+  });
   return getUser(user.id);
 }
 

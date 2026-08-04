@@ -28,6 +28,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       auth.clearToken();
       window.dispatchEvent(new Event('auth:expired'));
     }
+    // A live session can hit this mid-use (e.g. an Admin resets this user's password while
+    // they're active) — refetch /me instead of leaving them looking at a raw error toast, so
+    // the forced-change screen takes over instead of a dead end.
+    if (res.status === 403 && body.mustChangePassword) {
+      window.dispatchEvent(new Event('auth:mustChangePassword'));
+    }
     throw new Error(body.error || `Request to ${path} failed (${res.status})`);
   }
   return res.json();
@@ -226,8 +232,10 @@ export const api = {
   getPermissions: () => request<PermissionsResponse>('/api/settings/permissions'),
   savePermissions: (permissions: RolePermissions) => request<RolePermissions>('/api/settings/permissions', { method: 'PUT', body: JSON.stringify(permissions) }),
 
+  // Returns a fresh token (the server bumps tokenVersion to kill any OTHER session on the
+  // account, which would otherwise also invalidate this very request's own token).
   changePassword: (currentPassword: string, newPassword: string) =>
-    request<User>('/api/auth/change-password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) }),
+    request<LoginResult>('/api/auth/change-password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) }),
 
   // Downloads a CSV that requires auth (a plain <a href> can't attach a Bearer token):
   // fetch it as a blob and trigger the browser's normal download UI from that.

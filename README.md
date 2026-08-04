@@ -14,6 +14,8 @@ cd app && npm install && cp .env.example .env && npm run dev
 
 Open http://localhost:5173. See `server/README.md` for the lead-intake webhook shape and wiring up a real telephony provider (Twilio/Exotel — mock calling works out of the box).
 
+**Deploying this to AWS?** See [`DEPLOYMENT.md`](DEPLOYMENT.md).
+
 ---
 
 # CODING AGENTS: READ THIS FIRST

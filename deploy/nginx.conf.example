@@ -1,0 +1,42 @@
+# Sample nginx site config for EM Leads. Copy to /etc/nginx/sites-available/em-crm,
+# adjust the paths/domain, then:
+#   sudo ln -s /etc/nginx/sites-available/em-crm /etc/nginx/sites-enabled/
+#   sudo nginx -t && sudo systemctl reload nginx
+#
+# Serves the built frontend (app/dist) as static files, and reverse-proxies /api and
+# /uploads to the Node process managed by PM2 (see server/ecosystem.config.cjs) on
+# localhost:8787. Get a real cert with `sudo certbot --nginx -d crm.yourcompany.com` after
+# this is up and running on port 80 — don't hand-roll the SSL block, certbot edits this file
+# for you.
+
+server {
+    listen 80;
+    server_name crm.yourcompany.com;
+
+    # Frontend: `npm run build` in app/ produces app/dist — point this at that folder.
+    root /var/www/em-crm/app/dist;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:8787;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        # CSV import / dealer import uploads can be a few MB.
+        client_max_body_size 10m;
+    }
+
+    location /uploads/ {
+        proxy_pass http://127.0.0.1:8787;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}

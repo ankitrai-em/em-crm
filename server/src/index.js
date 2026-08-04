@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
+import { rateLimit } from 'express-rate-limit';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { parse as parseCsv } from 'csv-parse/sync';
@@ -25,15 +26,63 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = process.env.UPLOADS_DIR ? path.resolve(process.env.UPLOADS_DIR) : path.join(__dirname, '..', 'uploads');
 
 const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET && process.env.NODE_ENV === 'production') {
+  // The fallback below is public (it's in this file, in a public-if-your-repo-is-public
+  // history) — using it in production means anyone can forge a valid Admin token. Refuse to
+  // start rather than silently run insecurely. Local dev (NODE_ENV unset) keeps the fallback
+  // so `npm run dev` still works out of the box without any setup.
+  console.error('FATAL: JWT_SECRET is not set. Refusing to start with NODE_ENV=production. Generate one with `openssl rand -hex 32` and set it in server/.env.');
+  process.exit(1);
+}
 if (!JWT_SECRET) {
   console.warn('WARNING: JWT_SECRET is not set in server/.env — using an insecure default. Set a real secret before deploying.');
 }
 const EFFECTIVE_JWT_SECRET = JWT_SECRET || 'dev-insecure-secret-change-me';
 
+// Comma-separated list of allowed frontend origins, e.g. "https://crm.example.com". Left
+// unset, CORS reflects any origin — fine for local dev (Vite's port can vary) but should
+// always be set once this has a real domain, since the public webhook and everything else
+// live on this same server.
+const CORS_ORIGINS = (process.env.CORS_ORIGIN || '').split(',').map((o) => o.trim()).filter(Boolean);
+if (CORS_ORIGINS.length === 0 && process.env.NODE_ENV === 'production') {
+  console.warn('WARNING: CORS_ORIGIN is not set in production — the API will accept requests from any origin. Set it to your frontend\'s URL(s).');
+}
+
 const app = express();
-app.use(cors());
+// Only set this when actually deployed behind a real reverse proxy (nginx, an AWS ALB, etc.)
+// — it tells Express to trust X-Forwarded-For for the client's real IP. Rate limiting (below)
+// depends on this being correct: trusting it when there's no real proxy in front lets anyone
+// spoof the header to dodge the limit; NOT trusting it when there IS a proxy makes every
+// request look like it came from the proxy's own IP, so one user's mistakes would lock out
+// the whole office. Set TRUST_PROXY to the number of proxy hops in front of this process
+// (usually 1) in production; leave it unset for local dev.
+if (process.env.TRUST_PROXY) app.set('trust proxy', parseInt(process.env.TRUST_PROXY, 10) || process.env.TRUST_PROXY);
+app.use(cors(CORS_ORIGINS.length ? { origin: CORS_ORIGINS } : {}));
 app.use(express.json());
-app.use('/uploads', express.static(UPLOADS_DIR));
+// requireAuth is a hoisted function declaration (defined further down), so it's already
+// usable here. Files aren't served to anyone who isn't logged in — without this, any
+// uploaded file (see the fileFilter below on why that matters) was reachable by URL alone.
+app.use('/uploads', requireAuth, express.static(UPLOADS_DIR));
+
+// Invoices only. The UI already restricted this via <input accept=...>, but that's a hint,
+// not enforcement — anyone with a valid session could otherwise upload and then fetch back
+// an .html/.svg file with embedded script, which would execute same-origin as the app (and
+// same-origin as its localStorage-held JWT). Extension + MIME type are both checked; neither
+// is unspoofable alone, but together they block the realistic version of this attack.
+const ALLOWED_UPLOAD_TYPES = {
+  '.pdf': 'application/pdf',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+};
+function uploadFileFilter(_req, file, cb) {
+  const ext = path.extname(file.originalname).toLowerCase();
+  const expectedMime = ALLOWED_UPLOAD_TYPES[ext];
+  if (!expectedMime || file.mimetype !== expectedMime) {
+    return cb(new Error('Only PDF, JPG, and PNG files are allowed'));
+  }
+  cb(null, true);
+}
 
 const upload = multer({
   storage: multer.diskStorage({
@@ -41,6 +90,7 @@ const upload = multer({
     filename: (_req, file, cb) => cb(null, `${nanoid(10)}${path.extname(file.originalname)}`),
   }),
   limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: uploadFileFilter,
 });
 
 // Used for CSV imports (leads, dealers) — parsed in memory, never written to disk.
@@ -48,10 +98,43 @@ const csvUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 
 
 const PORT = process.env.PORT || 8787;
 
+// Every seed/new account starts on a predictable password (DEFAULT_PASSWORD) at a
+// predictable email (firstname.lastname@emotorad.com) — without this, login is brute-
+// forceable with no friction at all. 20 attempts / 15 min per IP is generous enough that a
+// shared office connection with someone mistyping their password repeatedly won't get
+// everyone locked out, while still making guessing infeasible.
+const loginRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many login attempts. Please wait a few minutes and try again.' },
+});
+
 function sanitizeUser(user) {
   if (!user) return user;
   const { password, tokenVersion, ...safe } = user;
   return { ...safe, active: !!safe.active, hierarchyEnabled: !!safe.hierarchyEnabled, inPool: !!safe.inPool, mustChangePassword: !!safe.mustChangePassword };
+}
+
+// GET /api/leads (list) already scopes to the requester's hierarchy tree via
+// getVisibleOwnerNames — every route below that operates on a single lead by ID needs the
+// same check, or hierarchy is just a list-view filter with no actual enforcement: anyone
+// who learns a lead's ID (a shared link, a prior API response, brute force of the 6-char
+// suffix) could otherwise read or act on a lead hierarchy is supposed to hide from them.
+// 404 (not 403) so a lead outside someone's tree isn't distinguishable from one that
+// doesn't exist at all.
+function requireLeadVisible(req, res, lead) {
+  if (!lead) {
+    res.status(404).json({ error: 'not found' });
+    return false;
+  }
+  const visible = getVisibleOwnerNames(req.authUser.sub);
+  if (visible && !visible.has(lead.owner)) {
+    res.status(404).json({ error: 'not found' });
+    return false;
+  }
+  return true;
 }
 
 function csvEscape(v) {
@@ -104,6 +187,12 @@ function logAudit(req, action, target, details) {
   });
 }
 
+// Routes reachable even when mustChangePassword is true — just enough to read the current
+// user and actually change the password. Everything else is blocked server-side so the
+// forced-change screen can't be bypassed by calling the API directly (it was previously a
+// frontend-only gate: any other endpoint worked fine against a default/reset password).
+const ALLOWED_WHILE_MUST_CHANGE_PASSWORD = new Set(['/api/auth/me', '/api/auth/change-password']);
+
 function requireAuth(req, res, next) {
   const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
@@ -115,6 +204,9 @@ function requireAuth(req, res, next) {
     const user = getUser(decoded.sub);
     if (!user || user.tokenVersion !== decoded.tokenVersion) {
       return res.status(401).json({ error: 'Session expired, please log in again' });
+    }
+    if (user.mustChangePassword && !ALLOWED_WHILE_MUST_CHANGE_PASSWORD.has(req.path)) {
+      return res.status(403).json({ error: 'You must set a new password before continuing', mustChangePassword: true });
     }
     req.authUser = decoded;
     next();
@@ -165,7 +257,7 @@ function evaluateDailyEligibility(user) {
   return user;
 }
 
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', loginRateLimiter, (req, res) => {
   const { email, password } = req.body || {};
   let user = getUserByEmail(email);
   if (!user || !bcrypt.compareSync(password || '', user.password)) {
@@ -197,8 +289,13 @@ app.post('/api/auth/change-password', requireAuth, (req, res) => {
   if (!newPassword || newPassword.length < 8) {
     return res.status(400).json({ error: 'New password must be at least 8 characters' });
   }
-  const updated = patchUser(user.id, { password: bcrypt.hashSync(newPassword, 10), mustChangePassword: false });
-  res.json(sanitizeUser(updated));
+  // Bump tokenVersion so any OTHER session on this account (e.g. a device the user no longer
+  // has, or an attacker who had the old password) is killed immediately — then re-issue a
+  // fresh token for THIS request's own session so the user isn't logged out by their own
+  // password change.
+  const updated = patchUser(user.id, { password: bcrypt.hashSync(newPassword, 10), mustChangePassword: false, tokenVersion: user.tokenVersion + 1 });
+  const token = jwt.sign({ sub: updated.id, role: updated.role, tokenVersion: updated.tokenVersion }, EFFECTIVE_JWT_SECRET, { expiresIn: '7d' });
+  res.json({ token, user: sanitizeUser(updated) });
 });
 
 function normalizeIncomingLead(body) {
@@ -273,7 +370,7 @@ app.get('/api/leads/export', requireAuth, requirePermission('exportData'), (req,
 
 app.get('/api/leads/:id', requireAuth, (req, res) => {
   const lead = getLead(req.params.id);
-  if (!lead) return res.status(404).json({ error: 'not found' });
+  if (!requireLeadVisible(req, res, lead)) return;
   res.json(lead);
 });
 
@@ -387,6 +484,7 @@ app.post('/api/leads/webhook', checkWebhookSecret, (req, res) => {
 // Partial update: stage changes, follow-ups, test rides, sales, manual edits.
 // Optionally pass `activityNote` (string) or `activityEntry` (full ActivityEntry) to append to the timeline.
 app.patch('/api/leads/:id', requireAuth, (req, res) => {
+  if (!requireLeadVisible(req, res, getLead(req.params.id))) return;
   const { activityNote, activityEntry, ...patch } = req.body || {};
   const entry = activityEntry || (activityNote ? { ts: Date.now(), kind: 'note', text: activityNote } : undefined);
   const updated = patchLead(req.params.id, patch, entry);
@@ -400,7 +498,7 @@ app.patch('/api/leads/:id', requireAuth, (req, res) => {
 // leads) so this one specific field-change can be gated behind its own permission.
 app.patch('/api/leads/:id/reassign', requireAuth, requirePermission('reassignLeads'), (req, res) => {
   const lead = getLead(req.params.id);
-  if (!lead) return res.status(404).json({ error: 'not found' });
+  if (!requireLeadVisible(req, res, lead)) return;
   const owner = (req.body?.owner || '').trim();
   if (!owner) return res.status(400).json({ error: 'owner is required (use "Unassigned" to send it back to the pool)' });
   if (owner !== 'Unassigned' && !getUserByName(owner)) return res.status(400).json({ error: `No user named "${owner}"` });
@@ -419,7 +517,7 @@ app.patch('/api/leads/:id/reassign', requireAuth, requirePermission('reassignLea
 // in User Management, so the same lead always rings the right agent's phone.
 app.post('/api/leads/:id/call', requireAuth, async (req, res) => {
   const lead = getLead(req.params.id);
-  if (!lead) return res.status(404).json({ error: 'not found' });
+  if (!requireLeadVisible(req, res, lead)) return;
 
   const owner = getUserByName(lead.owner);
   const agentNumber = owner?.phone || null;
@@ -637,7 +735,8 @@ const AUDITED_STAGE_BY_SALE_STAGE = { 7: 9, 8: 10 };
 
 app.patch('/api/leads/:id/sale-audit', requireAuth, requirePermission('salesAudit'), (req, res) => {
   const lead = getLead(req.params.id);
-  if (!lead || !lead.sale) return res.status(404).json({ error: 'not found' });
+  if (!requireLeadVisible(req, res, lead)) return;
+  if (!lead.sale) return res.status(404).json({ error: 'not found' });
   const { auditStatus, auditNote } = req.body || {};
   if (!['successful', 'rejected'].includes(auditStatus)) return res.status(400).json({ error: 'auditStatus must be "successful" or "rejected"' });
   const patch = { sale: { ...lead.sale, auditStatus, auditNote: auditNote || '' } };
@@ -682,7 +781,12 @@ app.post('/api/users', requireAuth, requirePermission('manageUsers'), (req, res)
 app.patch('/api/users/:id', requireAuth, requirePermission('manageUsers'), (req, res) => {
   const { password, active, tokenVersion, lastLoginDate, mustChangePassword, ...rest } = req.body || {};
   const before = getUser(req.params.id);
-  const updated = patchUser(req.params.id, rest);
+  if (!before) return res.status(404).json({ error: 'not found' });
+  // A role change must take effect immediately, not whenever the target's token happens to
+  // expire (up to 7 days) — requireAuth trusts the role baked into the JWT at issue time, so
+  // an already-issued token needs to be forced stale the moment the role underneath it moves.
+  const roleChanging = 'role' in rest && rest.role !== before.role;
+  const updated = patchUser(req.params.id, roleChanging ? { ...rest, tokenVersion: before.tokenVersion + 1 } : rest);
   if (!updated) return res.status(404).json({ error: 'not found' });
   const changed = {};
   for (const key of ['name', 'email', 'phone', 'role', 'managerId', 'hierarchyEnabled', 'inPool']) {
@@ -696,7 +800,10 @@ app.post('/api/users/:id/reset-password', requireAuth, requirePermission('manage
   const target = getUser(req.params.id);
   if (!target) return res.status(404).json({ error: 'not found' });
   const newPassword = req.body?.password || DEFAULT_PASSWORD;
-  const updated = patchUser(req.params.id, { password: bcrypt.hashSync(newPassword, 10), mustChangePassword: true });
+  // Bump tokenVersion so a possibly-compromised account's existing sessions die immediately —
+  // otherwise an old token keeps working under the old password for up to 7 days regardless
+  // of the reset, which defeats the point of resetting it as an incident-response action.
+  const updated = patchUser(req.params.id, { password: bcrypt.hashSync(newPassword, 10), mustChangePassword: true, tokenVersion: target.tokenVersion + 1 });
   logAudit(req, 'user.password_reset', target, {});
   res.json(sanitizeUser(updated));
 });
@@ -759,6 +866,15 @@ app.post('/api/allocation/run-pool', requireAuth, requirePermission('runAllocati
   const count = allocatePoolLeads();
   logAudit(req, 'allocation.pool_run_manual', null, { count });
   res.json({ count });
+});
+
+// Catches multer errors (fileFilter rejections, size-limit overruns) and anything else
+// thrown synchronously in a route — without this, Express's default handler returns an
+// HTML crash page instead of the JSON error shape every client here expects.
+app.use((err, _req, res, _next) => {
+  if (res.headersSent) return;
+  console.error('[error]', err.message);
+  res.status(400).json({ error: err.message || 'Request failed' });
 });
 
 startAllocationScheduler();

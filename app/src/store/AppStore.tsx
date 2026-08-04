@@ -87,6 +87,18 @@ function useProviderValue() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // The server can start requiring a password change mid-session (an Admin reset it while
+  // this user was active). Refetch /me so state.currentUser.mustChangePassword flips true and
+  // AppShell swaps in the forced-change screen, instead of the user just seeing error toasts.
+  useEffect(() => {
+    const onMustChange = () => {
+      api.me().then((user) => setState({ currentUser: user })).catch(() => {});
+    };
+    window.addEventListener('auth:mustChangePassword', onMustChange);
+    return () => window.removeEventListener('auth:mustChangePassword', onMustChange);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const updateLead = async (id: string, patch: Partial<Lead>, activity: string | ActivityEntry) => {
     const activityField = typeof activity === 'string' ? { activityNote: activity } : { activityEntry: activity };
     try {
@@ -662,9 +674,10 @@ function useProviderValue() {
     }
     setState({ changePasswordBusy: true, changePasswordError: '' });
     try {
-      const updated = await api.changePassword(changePasswordCurrent, changePasswordNew);
+      const { token, user } = await api.changePassword(changePasswordCurrent, changePasswordNew);
+      auth.setToken(token); // server bumped tokenVersion; the old stored token is now dead
       setState({
-        currentUser: updated, changePasswordBusy: false,
+        currentUser: user, changePasswordBusy: false,
         changePasswordCurrent: '', changePasswordNew: '', changePasswordConfirm: '', changePasswordError: '',
       });
       showToast('Password updated');
