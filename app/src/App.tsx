@@ -59,6 +59,7 @@ function AppShell() {
       <AddLeadModal />
       <UserModal />
       <ResetPasswordModal />
+      {state.changePasswordOpen && <ChangePasswordModal />}
     </div>
   );
 }

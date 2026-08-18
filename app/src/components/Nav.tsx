@@ -5,7 +5,7 @@ import { useClickOutside } from '../hooks/useClickOutside';
 import type { View } from '../types';
 
 export function Nav() {
-  const { state, goDashboard, goLeads, goImportLeads, goUsers, goInventory, goAccessories, goIntegrations, goDispositions, goDealers, goAuditLog, goSalesAudit, goPermissions, logout } = useApp();
+  const { state, goDashboard, goLeads, goImportLeads, goUsers, goInventory, goAccessories, goIntegrations, goDispositions, goDealers, goAuditLog, goSalesAudit, goPermissions, logout, openChangePassword } = useApp();
   const [adminOpen, setAdminOpen] = useState(false);
   const closeAdminMenu = useCallback(() => setAdminOpen(false), []);
   const adminMenuRef = useClickOutside<HTMLDivElement>(closeAdminMenu, adminOpen);
@@ -88,6 +88,9 @@ export function Nav() {
           <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.2 }}>{user?.name}</div>
           <div style={{ fontSize: 11, color: 'var(--color-neutral-600)', lineHeight: 1.2 }}>{user?.role}</div>
         </div>
+        <a href="#" style={{ fontSize: 12, color: 'var(--color-neutral-600)', marginLeft: 4 }} onClick={(e) => { e.preventDefault(); openChangePassword(); }}>
+          Change Password
+        </a>
         <a href="#" style={{ fontSize: 12, color: 'var(--color-neutral-600)', marginLeft: 4 }} onClick={(e) => { e.preventDefault(); logout(); }}>
           Log out
         </a>

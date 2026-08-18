@@ -1,7 +1,7 @@
 import { useApp } from '../../store/AppStore';
 
 export function ChangePasswordModal({ forced }: { forced?: boolean }) {
-  const { state, updateChangePasswordField, submitChangePassword } = useApp();
+  const { state, updateChangePasswordField, submitChangePassword, closeChangePassword } = useApp();
 
   return (
     <div style={{ position: 'fixed', inset: 0, display: 'grid', placeItems: 'center', padding: 20, background: 'color-mix(in srgb, var(--color-neutral-900) 50%, transparent)', zIndex: 60 }}>
@@ -18,13 +18,23 @@ export function ChangePasswordModal({ forced }: { forced?: boolean }) {
         <Field label="New password (min 8 characters)" value={state.changePasswordNew} onChange={(v) => updateChangePasswordField('changePasswordNew', v)} />
         <Field label="Confirm new password" value={state.changePasswordConfirm} onChange={(v) => updateChangePasswordField('changePasswordConfirm', v)} />
         {state.changePasswordError && <div style={{ fontSize: 13, color: 'var(--color-accent-2-700)' }}>{state.changePasswordError}</div>}
-        <button
-          disabled={state.changePasswordBusy}
-          style={{ background: 'var(--color-accent)', color: 'var(--color-bg)', border: '1px solid transparent', borderRadius: 'var(--radius-md)', padding: '10px 16px', fontFamily: 'var(--font-heading)', fontWeight: 600, fontSize: 13, cursor: state.changePasswordBusy ? 'default' : 'pointer', opacity: state.changePasswordBusy ? 0.7 : 1 }}
-          onClick={submitChangePassword}
-        >
-          {state.changePasswordBusy ? 'Saving…' : 'Set new password'}
-        </button>
+        <div style={{ display: 'flex', gap: 10, justifyContent: forced ? 'flex-start' : 'flex-end' }}>
+          {!forced && (
+            <button
+              style={{ background: 'transparent', color: 'var(--color-text)', border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-md)', padding: '10px 16px', fontSize: 13, cursor: 'pointer' }}
+              onClick={closeChangePassword}
+            >
+              Cancel
+            </button>
+          )}
+          <button
+            disabled={state.changePasswordBusy}
+            style={{ background: 'var(--color-accent)', color: 'var(--color-bg)', border: '1px solid transparent', borderRadius: 'var(--radius-md)', padding: '10px 16px', fontFamily: 'var(--font-heading)', fontWeight: 600, fontSize: 13, cursor: state.changePasswordBusy ? 'default' : 'pointer', opacity: state.changePasswordBusy ? 0.7 : 1 }}
+            onClick={submitChangePassword}
+          >
+            {state.changePasswordBusy ? 'Saving…' : 'Set new password'}
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -656,6 +656,8 @@ function useProviderValue() {
   };
 
   // ---- change password (self-service; forced on first login / after a reset) ----
+  const openChangePassword = () => setState({ changePasswordOpen: true, changePasswordCurrent: '', changePasswordNew: '', changePasswordConfirm: '', changePasswordError: '' });
+  const closeChangePassword = () => setState({ changePasswordOpen: false, changePasswordCurrent: '', changePasswordNew: '', changePasswordConfirm: '', changePasswordError: '' });
   const updateChangePasswordField = (field: 'changePasswordCurrent' | 'changePasswordNew' | 'changePasswordConfirm', value: string) =>
     setState({ [field]: value, changePasswordError: '' } as Partial<AppState>);
   const submitChangePassword = async () => {
@@ -677,7 +679,7 @@ function useProviderValue() {
       const { token, user } = await api.changePassword(changePasswordCurrent, changePasswordNew);
       auth.setToken(token); // server bumped tokenVersion; the old stored token is now dead
       setState({
-        currentUser: user, changePasswordBusy: false,
+        currentUser: user, changePasswordBusy: false, changePasswordOpen: false,
         changePasswordCurrent: '', changePasswordNew: '', changePasswordConfirm: '', changePasswordError: '',
       });
       showToast('Password updated');
@@ -789,6 +791,8 @@ function useProviderValue() {
     savePermissions,
     exportLeadsCsv,
     exportSalesCsv,
+    openChangePassword,
+    closeChangePassword,
     updateChangePasswordField,
     submitChangePassword,
     // static reference lists

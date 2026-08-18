@@ -71,6 +71,7 @@ export interface AppState {
   accessoryForm: AccessoryForm;
   rolePermissions: RolePermissions | null;
   permissionKeys: PermissionKey[];
+  changePasswordOpen: boolean;
   changePasswordCurrent: string;
   changePasswordNew: string;
   changePasswordConfirm: string;
@@ -147,6 +148,7 @@ export function initialState(leads: Lead[]): AppState {
     accessoryForm: emptyAccessoryForm,
     rolePermissions: null,
     permissionKeys: [],
+    changePasswordOpen: false,
     changePasswordCurrent: '',
     changePasswordNew: '',
     changePasswordConfirm: '',
